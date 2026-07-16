@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>ウェブ版 バトルファクトリー メガシンカ・Z-A対応版</title>
+    <title>ウェブ版 バトルファクトリー 最終レビュー版</title>
     <style>
         :root {
             --primary: #2c3e50;
@@ -71,8 +71,9 @@
         #field-status-bar { position: absolute; top: 10px; left: 10px; background: var(--field-bar-bg); color: white; padding: 5px 10px; border-radius: 5px; font-size: 11px; font-weight: bold; display: flex; flex-direction: column; gap: 2px; z-index: 10; transition: background .25s ease; }
         .field-item { color: #f1c40f; }
 
-        .moves-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 5px; height: 140px;}
-        .move-btn { margin: 0; padding: 5px; font-size: 14px; text-align: left; display: flex; flex-direction: column; justify-content: center; }
+        .moves-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 6px; min-height: 230px; }
+        .move-btn { margin: 0; padding: 8px; min-width: 0; min-height: 110px; font-size: 14px; text-align: left; display: flex; flex-direction: column; justify-content: flex-start; gap: 3px; overflow: hidden; }
+        .move-description { font-size: 10px; line-height: 1.35; font-weight: normal; opacity: .9; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
         .mega-controls { display: flex; justify-content: center; min-height: 44px; }
         .mega-btn { width: 100%; padding: 9px 14px; background: linear-gradient(135deg, #8e44ad, #e84393); box-shadow: 0 0 0 2px rgba(255,255,255,.55) inset, 0 2px 8px rgba(142,68,173,.35); }
         .mega-btn.pending { background: linear-gradient(135deg, #f39c12, #e74c3c); animation: megaPulse 1s infinite alternate; }
@@ -216,6 +217,7 @@
                 overflow-wrap: anywhere;
             }
             .move-meta { font-size: 9px; }
+            .move-description { font-size: 9px; -webkit-line-clamp: 4; }
             .mega-controls, .switch-controls { min-height: 0; }
             .mega-btn, .switch-btn { min-height: 48px; padding: 10px 12px; }
             .switch-panel {
@@ -260,7 +262,7 @@
             .enemy-side .status-board, .player-side .status-board { width: min(48vw, 154px); padding: 6px; }
             .status-board { font-size: 11px; }
             .hp-bar-bg { margin: 3px 0; }
-            .move-btn { min-height: 66px; font-size: 12px; padding: 7px 6px; }
+            .move-btn { min-height: 100px; font-size: 12px; padding: 7px 6px; }
             .right-pane { height: 210px; }
         }
 
@@ -465,7 +467,18 @@ const ITEM_DEFS = {
     'black-belt': { ja: 'くろおび' }, 'poison-barb': { ja: 'どくバリ' }, 'soft-sand': { ja: 'やわらかいすな' },
     'sharp-beak': { ja: 'するどいくちばし' }, 'twisted-spoon': { ja: 'まがったスプーン' }, 'silver-powder': { ja: 'ぎんのこな' },
     'hard-stone': { ja: 'かたいいし' }, 'spell-tag': { ja: 'のろいのおふだ' }, 'dragon-fang': { ja: 'りゅうのキバ' },
-    'black-glasses': { ja: 'くろいメガネ' }, 'metal-coat': { ja: 'メタルコート' }, 'fairy-feather': { ja: 'ようせいのハネ' }
+    'black-glasses': { ja: 'くろいメガネ' }, 'metal-coat': { ja: 'メタルコート' }, 'fairy-feather': { ja: 'ようせいのハネ' },
+    'booster-energy': { ja: 'ブーストエナジー' }, 'power-herb': { ja: 'パワフルハーブ' },
+    'mental-herb': { ja: 'メンタルハーブ' }, 'throat-spray': { ja: 'のどスプレー' },
+    'punching-glove': { ja: 'パンチグローブ' }, 'protective-pads': { ja: 'ぼうごパット' },
+    'utility-umbrella': { ja: 'ばんのうがさ' }, 'shed-shell': { ja: 'きれいなぬけがら' },
+    'binding-band': { ja: 'しめつけバンド' }, 'grip-claw': { ja: 'ねばりのかぎづめ' },
+    'electric-seed': { ja: 'エレキシード' }, 'grassy-seed': { ja: 'グラスシード' },
+    'misty-seed': { ja: 'ミストシード' }, 'psychic-seed': { ja: 'サイコシード' },
+    'absorb-bulb': { ja: 'きゅうこん' }, 'cell-battery': { ja: 'じゅうでんち' },
+    'luminous-moss': { ja: 'ひかりごけ' }, 'snowball': { ja: 'ゆきだま' },
+    'adrenaline-orb': { ja: 'ビビリだま' }, 'room-service': { ja: 'ルームサービス' },
+    'metronome': { ja: 'メトロノーム' }, 'ability-shield': { ja: 'とくせいガード' }
 };
 
 const TYPE_BOOST_ITEMS = {
@@ -529,12 +542,14 @@ const ABILITY_NAMES = {
     'serene-grace':'てんのめぐみ','shield-dust':'りんぷん','stench':'あくしゅう','reckless':'すてみ','defeatist':'よわき','slow-start':'スロースタート',
     'toxic-debris':'どくげしょう','seed-sower':'こぼれダネ','electromorphosis':'でんきにかえる','thermal-exchange':'ねつこうかん','pickpocket':'わるいてぐせ',
     'arena-trap':'ありじごく','shadow-tag':'かげふみ','magnet-pull':'じりょく','suction-cups':'きゅうばん','flower-veil':'フラワーベール','sweet-veil':'スイートベール','pastel-veil':'パステルベール',
-    'aroma-veil':'アロマベール','damp':'しめりけ','rock-head':'いしあたま'
+    'aroma-veil':'アロマベール','damp':'しめりけ','rock-head':'いしあたま',
+    'dark-aura':'ダークオーラ','fairy-aura':'フェアリーオーラ','aura-break':'オーラブレイク',
+    'protosynthesis':'こだいかっせい','quark-drive':'クォークチャージ'
 };
 
 // この1対1エンジンで効果を持つ特性。未登録特性は監査に表示し、効果があると誤認させない。
 const IMPLEMENTED_ABILITIES = new Set(Object.keys(ABILITY_NAMES));
-const ABILITY_REVIEW_VERSION = '2026-07-16-v3';
+const ABILITY_REVIEW_VERSION = '2026-07-17-v4';
 const SINGLE_BATTLE_NO_EFFECT_ABILITIES = new Set([
     'run-away','illuminate','pickup','honey-gather','ball-fetch','plus','minus','friend-guard','healer','telepathy','symbiosis',
     'battery','power-spot','steely-spirit','commander','costar','hospitality','receiver','power-of-alchemy','curious-medicine'
@@ -642,6 +657,12 @@ const FIXED_DAMAGE_MOVES = new Set(['sonic-boom', 'dragon-rage', 'night-shade', 
 const SELF_DESTRUCT_MOVES = new Set(['explosion', 'self-destruct', 'memento', 'misty-explosion', 'healing-wish', 'lunar-dance', 'final-gambit']);
 const DAMP_BLOCKED_MOVES = new Set(['explosion', 'self-destruct', 'misty-explosion', 'mind-blown']);
 const PROTECT_MOVES = new Set(['protect', 'detect', 'spiky-shield', 'kings-shield', 'baneful-bunker', 'obstruct', 'silk-trap', 'burning-bulwark']);
+const INVULNERABLE_TWO_TURN_MOVES = new Set(['dig', 'dive', 'fly', 'bounce', 'phantom-force', 'shadow-force']);
+const TWO_TURN_CHARGE_MESSAGES = {
+    dig: '地中にもぐった！', dive: '水中に身をひそめた！', fly: '空高く飛び上がった！', bounce: '空高く跳び上がった！',
+    'phantom-force': '姿を消した！', 'shadow-force': '姿を消した！'
+};
+const MOVE_CATEGORY_NAMES = { physical: '物理', special: '特殊', status: '変化' };
 const INTENTIONAL_NO_EFFECT_MOVES = new Set(['splash', 'celebrate', 'hold-hands', 'happy-hour']);
 const SPECIAL_STATUS_MOVES = new Set([
     ...PROTECT_MOVES,
@@ -681,7 +702,13 @@ const FLING_FALLBACK_DATA = {
     'expert-belt': { power: 10 }, 'muscle-band': { power: 10 }, 'wise-glasses': { power: 10 },
     'scope-lens': { power: 30 }, 'razor-claw': { power: 80 },
     'heavy-duty-boots': { power: 80 }, 'clear-amulet': { power: 30 }, 'covert-cloak': { power: 30 },
-    'loaded-dice': { power: 30 }, 'shell-bell': { power: 30 }, 'safety-goggles': { power: 80 }
+    'loaded-dice': { power: 30 }, 'shell-bell': { power: 30 }, 'safety-goggles': { power: 80 },
+    'booster-energy': { power: 30 }, 'power-herb': { power: 10, effect: 'herb-effect' }, 'mental-herb': { power: 10, effect: 'herb-effect' },
+    'throat-spray': { power: 30 }, 'punching-glove': { power: 30 }, 'protective-pads': { power: 30 }, 'utility-umbrella': { power: 60 },
+    'shed-shell': { power: 10 }, 'binding-band': { power: 30 }, 'grip-claw': { power: 90 }, 'ability-shield': { power: 30 },
+    'electric-seed': { power: 10 }, 'grassy-seed': { power: 10 }, 'misty-seed': { power: 10 }, 'psychic-seed': { power: 10 },
+    'absorb-bulb': { power: 30 }, 'cell-battery': { power: 30 }, 'luminous-moss': { power: 30 }, 'snowball': { power: 30 },
+    'adrenaline-orb': { power: 30 }, 'room-service': { power: 100 }, 'metronome': { power: 30 }
 };
 
 function safeStorageGet(key, fallback = null) {
@@ -794,8 +821,8 @@ function itemName(slug) {
     return api ? getJaName(api.names, ITEM_DEFS[slug]?.ja || '道具名未取得') : (ITEM_DEFS[slug]?.ja || '道具名未取得');
 }
 function abilityName(slug) {
-    if (!slug) return 'なし';
-    return ABILITY_NAMES[slug] || '特性名未取得';
+    if (!slug) return '特性データ未登録';
+    return ABILITY_NAMES[slug] || '特性名を取得できませんでした';
 }
 async function cacheAbilityLocalization(abilityRef) {
     const slug = abilityRef?.name;
@@ -809,6 +836,7 @@ const MOLD_BREAKER_UNIGNORABLE_ABILITIES = new Set(['full-metal-body', 'prism-ar
 const ABILITY_CANNOT_BE_REPLACED = new Set(['as-one-glastrier', 'as-one-spectrier', 'battle-bond', 'comatose', 'multitype', 'rks-system', 'commander']);
 function ignoresAbilities(attacker, defender = null) {
     if (!['mold-breaker', 'teravolt', 'turboblaze'].includes(attacker?.ability)) return false;
+    if (defender && hasItem(defender, 'ability-shield')) return false;
     return !defender || !MOLD_BREAKER_UNIGNORABLE_ABILITIES.has(defender.ability);
 }
 function hasItem(pk, slug) { return pk.item === slug; }
@@ -1100,7 +1128,7 @@ async function prepareMegaProfile(pokemon) {
         apiName: definition.apiSlug,
         types: apiData?.types?.map(entry => entry.type.name) || definition.types || pokemon.types,
         baseStats: Object.keys(apiStats).length ? apiStats : fallbackMegaBaseStats(pokemon, definition),
-        ability: megaAbilityEntry?.name && isAbilityOperational(megaAbilityEntry.name) ? megaAbilityEntry.name : pokemon.ability,
+        ability: megaAbilityEntry?.name || pokemon.ability,
         spriteF: apiData?.sprites?.front_default || apiData?.sprites?.other?.home?.front_default || apiData?.sprites?.other?.['official-artwork']?.front_default || fallbackImage,
         spriteB: apiData?.sprites?.back_default || '',
         weight: apiData?.weight || pokemon.weight,
@@ -1154,6 +1182,37 @@ function revertMegaEvolution(pk) {
     pk.isMega = false; pk.megaPending = false; pk.baseSnapshot = null;
 }
 
+function cleanFlavorText(value) {
+    return String(value || '').replace(/[\n\f\r]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function latestJapaneseMoveText(apiMove) {
+    const entries = (apiMove.flavor_text_entries || []).filter(entry => ['ja-Hrkt', 'ja'].includes(entry.language?.name));
+    return cleanFlavorText(entries.at(-1)?.flavor_text || '');
+}
+function synthesizeMoveDescription(move) {
+    if (INVULNERABLE_TWO_TURN_MOVES.has(move.origName)) return '1ターン目に姿を隠して攻撃を受けず、次のターンに自動で攻撃する。';
+    if (PROTECT_MOVES.has(move.origName)) return 'そのターンの攻撃を防ぐ。連続して使うほど失敗しやすくなる。';
+    if (move.origName === 'fling') return '持っている道具を投げつける。威力と追加効果は道具によって変わり、道具はなくなる。';
+    const parts = [];
+    if (move.healing > 0) parts.push(`最大体力の${move.healing}%を回復する。`);
+    if (move.drain > 0) parts.push(`与えたダメージの${move.drain}%を回復する。`);
+    if (move.drain < 0) parts.push(`与えたダメージに応じた反動を受ける。`);
+    if (move.statChanges?.length) {
+        const target = move.statChangeTarget === 'user' ? '自分' : '相手';
+        parts.push(`${target}の${move.statChanges.map(c => `${STAT_LABELS[c.stat.name] || c.stat.name}を${Math.abs(c.change)}段階${c.change > 0 ? '上げる' : '下げる'}`).join('、')}。`);
+    }
+    if (move.effect && move.effect !== 'none') parts.push('状態変化や追加効果が発生することがある。');
+    if (move.maxHits > 1) parts.push(`${move.minHits}～${move.maxHits}回連続で攻撃する。`);
+    return parts.join('') || (move.category === 'status' ? '能力や状態、場の状況を変化させる技。' : '相手にダメージを与える技。');
+}
+function moveDescription(pk, move) {
+    if (move.origName === 'fling') {
+        const power = displayedMovePower(pk, move);
+        return `持っている道具を消費して攻撃する。現在の威力は${power}。道具によって追加効果が変わる。`;
+    }
+    return move.description || synthesizeMoveDescription(move);
+}
+
 function inferStatChangeTarget(moveName, moveTarget, shortEffect) {
     if (['user', 'user-and-allies', 'users-field', 'all-allies'].includes(moveTarget)) return 'user';
     if (SELF_STAT_CHANGE_MOVES.has(moveName)) return 'user';
@@ -1170,6 +1229,7 @@ function normalizeMove(apiMove) {
     const statChance = apiMove.meta?.stat_chance > 0 ? apiMove.meta.stat_chance : (apiMove.stat_changes?.length ? (effectChance ?? 100) : 0);
     const target = apiMove.target?.name || 'selected-pokemon';
     const shortEffect = apiMove.effect_entries?.find(entry => entry.language.name === 'en')?.short_effect || '';
+    const description = latestJapaneseMoveText(apiMove);
     return {
         name: getJaName(apiMove.names, '技名未取得'), origName: apiMove.name, type: apiMove.type?.name || 'normal',
         power: apiMove.power, accuracy: apiMove.accuracy, priority: apiMove.priority || 0, category: apiMove.damage_class?.name || 'status',
@@ -1180,7 +1240,7 @@ function normalizeMove(apiMove) {
         minHits: apiMove.meta?.min_hits || 1, maxHits: apiMove.meta?.max_hits || apiMove.meta?.min_hits || 1,
         minTurns: apiMove.meta?.min_turns || 0, maxTurns: apiMove.meta?.max_turns || apiMove.meta?.min_turns || 0,
         flags: (apiMove.flags || []).map(entry => entry.name),
-        target, pp: apiMove.pp ?? 10, maxPp: apiMove.pp ?? 10, shortEffect
+        target, pp: apiMove.pp ?? 10, maxPp: apiMove.pp ?? 10, shortEffect, description
     };
 }
 
@@ -1237,6 +1297,8 @@ function chooseItem(pokemon) {
     const hasWeather = moves.find(move => ['rain-dance', 'sunny-day', 'sandstorm', 'hail', 'snowscape'].includes(move.origName));
     const hasTerrain = moves.some(move => move.origName.endsWith('-terrain'));
 
+    if (['protosynthesis', 'quark-drive'].includes(pokemon.ability) && isItemAvailable('booster-energy')) return 'booster-energy';
+    if (moves.some(move => INVULNERABLE_TWO_TURN_MOVES.has(move.origName)) && Math.random() < 0.35 && isItemAvailable('power-herb')) return 'power-herb';
     if (hasWalls) return 'light-clay';
     if (hasHazards && pokemon.stats.speed >= 80) return 'focus-sash';
     if (hasMultiHit) return 'loaded-dice';
@@ -1258,7 +1320,10 @@ function chooseItem(pokemon) {
         'life-orb', 'expert-belt', 'weakness-policy', 'lum-berry', 'sitrus-berry', 'oran-berry', 'leppa-berry',
         'enigma-berry', 'lansat-berry', 'starf-berry', 'micle-berry', 'kee-berry', 'maranga-berry',
         'jaboca-berry', 'rowap-berry', resistBerry, 'air-balloon', 'quick-claw', 'scope-lens', 'wide-lens',
-        'shell-bell', 'heavy-duty-boots', 'clear-amulet', 'covert-cloak', primaryTypeItem
+        'shell-bell', 'heavy-duty-boots', 'clear-amulet', 'covert-cloak', 'mental-herb', 'throat-spray',
+        'punching-glove', 'protective-pads', 'utility-umbrella', 'shed-shell', 'binding-band', 'grip-claw',
+        'electric-seed', 'grassy-seed', 'misty-seed', 'psychic-seed', 'absorb-bulb', 'cell-battery',
+        'luminous-moss', 'snowball', 'adrenaline-orb', 'room-service', 'metronome', 'ability-shield', primaryTypeItem
     ].filter(Boolean).filter(isItemAvailable);
     return pool[Math.floor(Math.random() * pool.length)] || 'sitrus-berry';
 }
@@ -1274,10 +1339,11 @@ async function buildPokemon(apiData) {
     apiData.stats?.forEach(entry => { baseStats[entry.stat.name] = entry.base_stat; });
     if (!baseStats.hp || !apiData.moves?.length) return null;
 
-    const abilityEntries = (apiData.abilities || []).map(entry => entry.ability).filter(Boolean);
-    const operationalEntries = abilityEntries.filter(entry => isAbilityOperational(entry.name));
-    abilityEntries.filter(entry => !isAbilityOperational(entry.name)).forEach(entry => State.audit.unsupportedAbilities.add(entry.name));
-    const baseAbilityEntry = shuffle(operationalEntries)[0] || null;
+    const rawAbilityEntries = (apiData.abilities || []).filter(entry => entry?.ability);
+    const normalAbilities = rawAbilityEntries.filter(entry => !entry.is_hidden);
+    const chosenAbilityRecord = shuffle(normalAbilities.length ? normalAbilities : rawAbilityEntries)[0] || null;
+    const baseAbilityEntry = chosenAbilityRecord?.ability || null;
+    rawAbilityEntries.filter(entry => !isAbilityOperational(entry.ability.name)).forEach(entry => State.audit.unsupportedAbilities.add(entry.ability.name));
     const [species, moves] = await Promise.all([
         fetchAPI(apiData.species.url, State.cache.species, 1, 10000),
         selectOperationalMoves(apiData.moves),
@@ -1301,8 +1367,9 @@ async function buildPokemon(apiData) {
         modifiers: { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 },
         moves, item: null, origItem: null, status: 'none', statusTurns: 0, toxicCounter: 0, lockedMove: null, lastMove: null,
         lastDamageTaken: null, turnsActive: 0, megaOptions: [], megaProfile: null, megaPending: false, isMega: false, baseSnapshot: null,
-        abilityState: { proteanUsed: false, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, slowStartTurns: 0 },
-        volatile: { flinch: false, confused: 0, taunt: 0, trapped: 0, seeded: false, saltCure: false, protecting: false, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false }
+        abilityState: { proteanUsed: false, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false },
+        itemState: { metronomeMove: null, metronomeCount: 0 },
+        volatile: { flinch: false, confused: 0, taunt: 0, trapped: 0, trappedBy: null, seeded: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false }
     };
     pokemon.megaOptions = getMegaOptions(pokemon);
     pokemon.item = chooseItem(pokemon);
@@ -1371,8 +1438,9 @@ function resetPokemonForNewBattle(pk) {
     pk.ability = pk.origAbility;
     pk.megaPending = false;
     pk.modifiers = { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 };
-    pk.abilityState = { proteanUsed: false, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, slowStartTurns: 0 };
-    pk.volatile = { flinch: false, confused: 0, taunt: 0, trapped: 0, seeded: false, saltCure: false, protecting: false, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false };
+    pk.abilityState = { proteanUsed: false, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false };
+    pk.itemState = { metronomeMove: null, metronomeCount: 0 };
+    pk.volatile = { flinch: false, confused: 0, taunt: 0, trapped: 0, trappedBy: null, seeded: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false };
     pk.moves.forEach(move => { move.pp = move.maxPp; });
 }
 
@@ -1494,7 +1562,7 @@ function updateBattleUI() {
         const button = document.createElement('button');
         button.className = 'move-btn';
         const pp = Number.isFinite(move.pp) ? `${move.pp}/${move.maxPp}` : '∞';
-        button.innerHTML = `<div>${escapeHTML(move.name)}</div><div class="move-meta">${escapeHTML(TYPE_NAMES[move.type] || 'タイプ名未取得')}｜威力:${displayedMovePower(player, move)}／命中:${move.accuracy ?? '-'}／残り:${pp}</div>`;
+        button.innerHTML = `<div>${escapeHTML(move.name)}</div><div class="move-meta">${escapeHTML(TYPE_NAMES[move.type] || 'タイプ名未取得')}｜${escapeHTML(MOVE_CATEGORY_NAMES[move.category] || '分類不明')}｜威力:${displayedMovePower(player, move)}／命中:${move.accuracy ?? '-'}／残り:${pp}</div><div class="move-description">${escapeHTML(moveDescription(player, move))}</div>`;
         button.disabled = !legalNames.has(move.origName) || isAnimating;
         button.onclick = async () => {
             if (isAnimating) return;
@@ -1554,7 +1622,7 @@ function renderSwitchControls(player) {
     button.className = 'switch-btn';
     button.type = 'button';
     const foe = State.enemyTeam[State.activeEnemyIdx];
-    const abilityTrapped = foe?.stats.hp > 0 && ((hasAbility(foe, 'shadow-tag') && !hasAbility(player, 'shadow-tag')) || (hasAbility(foe, 'arena-trap') && isGrounded(player)) || (hasAbility(foe, 'magnet-pull') && player.types.includes('steel')));
+    const abilityTrapped = !hasItem(player, 'shed-shell') && foe?.stats.hp > 0 && ((hasAbility(foe, 'shadow-tag') && !hasAbility(player, 'shadow-tag')) || (hasAbility(foe, 'arena-trap') && isGrounded(player)) || (hasAbility(foe, 'magnet-pull') && player.types.includes('steel')));
     if (player.volatile.trapped > 0 || abilityTrapped) {
         button.textContent = abilityTrapped ? `交代できません（${abilityName(foe.ability)}）` : '交代できません（拘束中）';
         button.disabled = true;
@@ -1646,6 +1714,59 @@ function effectiveWeatherName() {
     const active = [State.playerTeam[State.activePlayerIdx], State.enemyTeam[State.activeEnemyIdx]];
     return active.some(pk => pk?.stats.hp > 0 && ['cloud-nine', 'air-lock'].includes(pk.ability)) ? 'none' : State.field.weather.name;
 }
+function effectiveWeatherFor(pk) {
+    if (pk && hasItem(pk, 'utility-umbrella') && ['sun', 'rain'].includes(effectiveWeatherName())) return 'none';
+    return effectiveWeatherName();
+}
+function getActivePokemon() {
+    return [State.playerTeam[State.activePlayerIdx], State.enemyTeam[State.activeEnemyIdx]].filter(pk => pk?.stats.hp > 0);
+}
+function getAuraPowerMultiplier(moveType) {
+    const active = getActivePokemon();
+    const aura = moveType === 'dark' ? 'dark-aura' : moveType === 'fairy' ? 'fairy-aura' : null;
+    if (!aura || !active.some(pk => hasAbility(pk, aura))) return 1;
+    return active.some(pk => hasAbility(pk, 'aura-break')) ? 0.75 : (4 / 3);
+}
+function highestNonHpStat(pk) {
+    const order = ['attack', 'defense', 'special-attack', 'special-defense', 'speed'];
+    return order.reduce((best, stat) => pk.stats[stat] > pk.stats[best] ? stat : best, order[0]);
+}
+function paradoxFieldActive(pk) {
+    if (hasAbility(pk, 'protosynthesis')) return effectiveWeatherFor(pk) === 'sun';
+    if (hasAbility(pk, 'quark-drive')) return State.field.terrain.name === 'electric';
+    return false;
+}
+function updateParadoxBoost(pk, announce = false) {
+    if (!pk || pk.stats.hp <= 0 || !['protosynthesis', 'quark-drive'].includes(pk.ability)) return;
+    pk.abilityState ||= {};
+    const fieldActive = paradoxFieldActive(pk);
+    if (fieldActive) {
+        const stat = highestNonHpStat(pk);
+        const changed = pk.abilityState.paradoxStat !== stat || pk.abilityState.paradoxSource !== 'field';
+        pk.abilityState.paradoxStat = stat;
+        pk.abilityState.paradoxSource = 'field';
+        if (changed && announce) logMsg(`⚡ ${escapeHTML(pk.name)} の ${escapeHTML(abilityName(pk.ability))}！ ${STAT_LABELS[stat]}が高まった！`);
+        return;
+    }
+    if (pk.abilityState.paradoxSource === 'item') return;
+    pk.abilityState.paradoxStat = null;
+    pk.abilityState.paradoxSource = null;
+    if (hasItem(pk, 'booster-energy')) {
+        const stat = highestNonHpStat(pk);
+        consumeHeldItem(pk);
+        pk.abilityState.paradoxStat = stat;
+        pk.abilityState.paradoxSource = 'item';
+        if (announce) logMsg(`🔋 ${escapeHTML(pk.name)} は ブーストエナジー で ${STAT_LABELS[stat]}を高めた！`);
+    }
+}
+function refreshActiveParadoxBoosts(announce = false) {
+    getActivePokemon().forEach(pk => updateParadoxBoost(pk, announce));
+}
+function paradoxMultiplier(pk, stat) {
+    updateParadoxBoost(pk, false);
+    if (pk?.abilityState?.paradoxStat !== stat) return 1;
+    return stat === 'speed' ? 1.5 : 1.3;
+}
 function actualBattleStat(pk, stat) {
     let value = pk.stats[stat] * stageMultiplier(pk.modifiers[stat] || 0);
     if (stat === 'speed') {
@@ -1664,6 +1785,27 @@ function triggerReactiveStatDrop(target, source) {
     if (hasAbility(target, 'defiant')) changeStat(target, 'attack', 2, target, { suppressReactive: true });
     if (hasAbility(target, 'competitive')) changeStat(target, 'special-attack', 2, target, { suppressReactive: true });
 }
+function triggerTerrainSeed(pk) {
+    const map = { electric: ['electric-seed', 'defense'], grassy: ['grassy-seed', 'defense'], misty: ['misty-seed', 'special-defense'], psychic: ['psychic-seed', 'special-defense'] };
+    const data = map[State.field.terrain.name];
+    if (!data || !hasItem(pk, data[0]) || !isGrounded(pk)) return false;
+    const item = itemName(pk.item); consumeHeldItem(pk); changeStat(pk, data[1], 1, pk);
+    logMsg(`🌱 ${escapeHTML(pk.name)} の ${escapeHTML(item)} が発動した！`);
+    return true;
+}
+function triggerRoomService(pk) {
+    if (State.field.trickRoom <= 0 || !hasItem(pk, 'room-service')) return false;
+    consumeHeldItem(pk); changeStat(pk, 'speed', -1, pk); logMsg(`🛎️ ${escapeHTML(pk.name)} の ルームサービス が発動した！`); return true;
+}
+function triggerEntryHeldItems(pk) {
+    triggerTerrainSeed(pk);
+    triggerRoomService(pk);
+}
+function refreshActiveFieldItems() {
+    getActivePokemon().forEach(pk => triggerEntryHeldItems(pk));
+    refreshActiveParadoxBoosts(true);
+}
+
 function activateEntryAbility(pk, isPlayer, fromMega = false) {
     if (!pk || pk.stats.hp <= 0) return;
     pk.abilityState ||= {};
@@ -1697,17 +1839,20 @@ function activateEntryAbility(pk, isPlayer, fromMega = false) {
             changeStat(foe, 'attack', -1, pk);
             if (hasAbility(foe, 'rattled')) changeStat(foe, 'speed', 1, foe);
             if (hasAbility(foe, 'guard-dog')) changeStat(foe, 'attack', 1, foe);
+            if (hasItem(foe, 'adrenaline-orb')) { consumeHeldItem(foe); changeStat(foe, 'speed', 1, foe); logMsg(`🔴 ${escapeHTML(foe.name)} の ビビリだま が発動した！`); }
         }
     }
     const weatherAbilities = { drought:'sun', drizzle:'rain', 'sand-stream':'sandstorm', 'snow-warning':'snow', 'orichalcum-pulse':'sun' };
     if (weatherAbilities[pk.ability]) {
         State.field.weather = { name: weatherAbilities[pk.ability], turns: 5 };
         logMsg(`🌦️ ${escapeHTML(pk.name)} の ${escapeHTML(abilityName(pk.ability))} で天候が変わった！`);
+        refreshActiveParadoxBoosts(true);
     }
     const terrainAbilities = { 'electric-surge':'electric', 'grassy-surge':'grassy', 'psychic-surge':'psychic', 'misty-surge':'misty', 'hadron-engine':'electric' };
     if (terrainAbilities[pk.ability]) {
         State.field.terrain = { name: terrainAbilities[pk.ability], turns: 5 };
         logMsg(`🌍 ${escapeHTML(pk.name)} の ${escapeHTML(abilityName(pk.ability))} でフィールドが変わった！`);
+        refreshActiveFieldItems();
     }
     if (hasAbility(pk, 'download') && foe) {
         const defense = actualBattleStat(foe, 'defense');
@@ -1720,6 +1865,8 @@ function activateEntryAbility(pk, isPlayer, fromMega = false) {
         logMsg(`🧹 ${escapeHTML(pk.name)} の バリアフリー で壁が消えた！`);
     }
     if (fromMega && hasAbility(pk, 'speed-boost')) logMsg(`⚙️ ${escapeHTML(pk.name)} はターン終了時に加速する！`);
+    triggerEntryHeldItems(pk);
+    updateParadoxBoost(pk, true);
 }
 
 function triggerFaintAbilities(fainted, source = null, move = null) {
@@ -1762,7 +1909,7 @@ function getRealSpeed(pk, isPlayer) {
     if (hasItem(pk, 'choice-scarf')) speed *= 1.5;
     if (hasItem(pk, 'iron-ball')) speed *= 0.5;
     if (sideField(isPlayer).tailwind > 0) speed *= 2;
-    const weather = effectiveWeatherName();
+    const weather = effectiveWeatherFor(pk);
     if (hasAbility(pk, 'chlorophyll') && weather === 'sun') speed *= 2;
     if (hasAbility(pk, 'swift-swim') && weather === 'rain') speed *= 2;
     if (hasAbility(pk, 'sand-rush') && weather === 'sandstorm') speed *= 2;
@@ -1770,6 +1917,7 @@ function getRealSpeed(pk, isPlayer) {
     if (hasAbility(pk, 'surge-surfer') && State.field.terrain.name === 'electric') speed *= 2;
     if (hasAbility(pk, 'slow-start') && (pk.abilityState?.slowStartTurns || 0) > 0) speed *= 0.5;
     if (hasAbility(pk, 'unburden') && pk.abilityState?.unburden) speed *= 2;
+    speed *= paradoxMultiplier(pk, 'speed');
     return Math.floor(speed);
 }
 function isGrounded(pk) {
@@ -1778,7 +1926,7 @@ function isGrounded(pk) {
     return !pk.types.includes('flying') && !hasItem(pk, 'air-balloon');
 }
 function effectivePriority(pk, move) {
-    let priority = move.priority || 0;
+    let priority = Number.isFinite(move.priorityOverride) ? move.priorityOverride : (move.priority || 0);
     if (hasAbility(pk, 'prankster') && move.category === 'status') priority += 1;
     if (hasAbility(pk, 'gale-wings') && effectiveMoveType(pk, move) === 'flying' && pk.stats.hp === pk.stats.maxHp) priority += 1;
     if (hasAbility(pk, 'triage') && (move.healing > 0 || move.drain > 0 || moveHasFlag(move, 'heal'))) priority += 3;
@@ -1798,6 +1946,7 @@ function priorityItemActivated(pk) {
 }
 
 function chooseEnemyMove(enemy, context = {}) {
+    if (enemy?.volatile?.chargingMove) return enemy.volatile.chargingMove;
     const legal = getLegalMoves(enemy);
     const scored = legal.map(move => {
         let score = Math.random() * 2;
@@ -1832,9 +1981,11 @@ function determineOrder(player, enemy, playerMove, enemyMove) {
 }
 
 function decrementPP(move, defender) {
-    if (!Number.isFinite(move.pp)) return;
+    if (move.isChargeRelease) return;
+    const sourceMove = move.sourceMove || move;
+    if (!Number.isFinite(sourceMove.pp)) return;
     const cost = isTargetingOpponent(move) && hasAbility(defender, 'pressure') ? 2 : 1;
-    move.pp = Math.max(0, move.pp - cost);
+    sourceMove.pp = Math.max(0, sourceMove.pp - cost);
 }
 function isTargetingOpponent(move) {
     return !['user', 'users-field', 'user-and-allies', 'all-allies', 'entire-field'].includes(move.target);
@@ -1894,20 +2045,43 @@ function calculateConfusionDamage(pk) {
     return Math.floor((((22 * 40 * attack / defense) / 50) + 2) * (0.85 + Math.random() * 0.15));
 }
 
-async function executeTurn(playerMove) {
+function prepareTurnMove(pk, selectedMove) {
+    if (pk?.volatile?.chargingMove) {
+        return { ...pk.volatile.chargingMove, sourceMove: pk.volatile.chargingMove, isChargeRelease: true, priorityOverride: 2.1, pp: Infinity };
+    }
+    if (!selectedMove) return { ...STRUGGLE_MOVE };
+    if (!INVULNERABLE_TWO_TURN_MOVES.has(selectedMove.origName)) return selectedMove;
+    if (hasItem(pk, 'power-herb')) return { ...selectedMove, sourceMove: selectedMove, usePowerHerb: true };
+    return { ...selectedMove, sourceMove: selectedMove, isChargeSetup: true };
+}
+function updateProtectChainForSelection(pk, move) {
+    if (!PROTECT_MOVES.has(move?.origName)) pk.volatile.protectChain = 0;
+}
+function clearChargeState(pk) {
+    if (!pk?.volatile) return;
+    pk.volatile.chargingMove = null;
+    pk.volatile.semiInvulnerable = false;
+}
+
+async function executeTurn(playerMove, options = {}) {
     const player = State.playerTeam[State.activePlayerIdx];
     const enemy = State.enemyTeam[State.activeEnemyIdx];
     if (!player || !enemy) return;
     logMsg(`--- ターン ${State.turn} ---`, true);
     State.turn++;
     for (const pk of [player, enemy]) {
-        pk.volatile.protecting = false;
+        pk.volatile.protecting = false; pk.volatile.protectMove = null;
         pk.volatile.flinch = false;
         pk.lastDamageTaken = null; pk.volatile.lastHitCritical = false; pk.abilityState.justSwitched = false;
     }
-    const enemyMove = chooseEnemyMove(enemy);
+    const enemySelectedMove = chooseEnemyMove(enemy);
+    const resolvedPlayerMove = prepareTurnMove(player, playerMove);
+    const resolvedEnemyMove = prepareTurnMove(enemy, enemySelectedMove);
+    updateProtectChainForSelection(player, resolvedPlayerMove);
+    updateProtectChainForSelection(enemy, resolvedEnemyMove);
     if (canMegaEvolve(enemy, false)) enemy.megaPending = true;
-    const actions = determineOrder(player, enemy, playerMove, enemyMove);
+    refreshActiveParadoxBoosts(false);
+    const actions = determineOrder(player, enemy, resolvedPlayerMove, resolvedEnemyMove);
     actions.forEach((action, index) => { action.atk.abilityState.movingLast = index === actions.length - 1; });
     let megaTimingResolved = false;
     for (const action of actions) {
@@ -1925,6 +2099,12 @@ async function executeTurn(playerMove) {
     enemy.turnsActive++;
     updateBattleUI();
     await checkFaint();
+    const currentPlayer = State.playerTeam[State.activePlayerIdx];
+    if (!State.gameEnded && currentPlayer?.stats.hp > 0 && currentPlayer.volatile.chargingMove && !options.automaticCharge) {
+        logMsg(`⏩ ${escapeHTML(currentPlayer.name)} は次のターンも ${escapeHTML(currentPlayer.volatile.chargingMove.name)} を続ける！`);
+        await sleep(550);
+        await executeTurn(null, { automaticCharge: true });
+    }
 }
 
 async function switchPlayerTo(targetIndex) {
@@ -1949,12 +2129,12 @@ async function executeSwitchTurn(targetIndex) {
     const target = State.playerTeam[targetIndex];
     const enemy = State.enemyTeam[State.activeEnemyIdx];
     const ghostCanEscape = outgoing?.types.includes('ghost');
-    const abilityTrapped = enemy?.stats.hp > 0 && !ghostCanEscape && ((hasAbility(enemy, 'shadow-tag') && !hasAbility(outgoing, 'shadow-tag')) || (hasAbility(enemy, 'arena-trap') && isGrounded(outgoing)) || (hasAbility(enemy, 'magnet-pull') && outgoing.types.includes('steel')));
+    const abilityTrapped = !hasItem(outgoing, 'shed-shell') && enemy?.stats.hp > 0 && !ghostCanEscape && ((hasAbility(enemy, 'shadow-tag') && !hasAbility(outgoing, 'shadow-tag')) || (hasAbility(enemy, 'arena-trap') && isGrounded(outgoing)) || (hasAbility(enemy, 'magnet-pull') && outgoing.types.includes('steel')));
     if (!outgoing || !target || !enemy || targetIndex === State.activePlayerIdx || target.stats.hp <= 0 || outgoing.volatile.trapped > 0 || abilityTrapped) return;
     logMsg(`--- ターン ${State.turn} ---`, true);
     State.turn++;
     for (const pk of [outgoing, enemy]) {
-        pk.volatile.protecting = false;
+        pk.volatile.protecting = false; pk.volatile.protectMove = null;
         pk.volatile.flinch = false;
         pk.lastDamageTaken = null; pk.volatile.lastHitCritical = false; pk.abilityState.justSwitched = false;
     }
@@ -2058,8 +2238,18 @@ function applyFlingEffect(target, flingData) {
 async function performAction(atk, def, move, isPlayer) {
     if (atk.stats.hp <= 0 || def.stats.hp <= 0) return;
     const reflectedAction = Boolean(move.reflected);
-    if (!reflectedAction && !canAct(atk)) { updateBattleUI(); await sleep(500); return; }
+    if (!reflectedAction && !canAct(atk)) {
+        if (PROTECT_MOVES.has(move.origName)) atk.volatile.protectChain = 0;
+        if (move.isChargeSetup || move.isChargeRelease) clearChargeState(atk);
+        updateBattleUI(); await sleep(500); return;
+    }
+    if (move.isChargeRelease) clearChargeState(atk);
+    if (move.usePowerHerb && hasItem(atk, 'power-herb')) {
+        consumeHeldItem(atk);
+        logMsg(`🌿 ${escapeHTML(atk.name)} は パワフルハーブ で力をためずに攻撃する！`);
+    }
     if (!reflectedAction && (hasItem(atk, 'assault-vest') || atk.volatile.taunt > 0) && move.category === 'status') {
+        if (PROTECT_MOVES.has(move.origName)) atk.volatile.protectChain = 0;
         logMsg(`🚫 ${escapeHTML(atk.name)} は ${hasItem(atk, 'assault-vest') ? 'とつげきチョッキ' : 'ちょうはつ'} のため変化技を使えない！`);
         return;
     }
@@ -2077,6 +2267,18 @@ async function performAction(atk, def, move, isPlayer) {
     if (!reflectedAction && CHOICE_ITEMS.has(atk.item) && !atk.lockedMove) atk.lockedMove = move.origName;
     await sleep(350);
 
+    if (move.isChargeSetup) {
+        atk.volatile.chargingMove = move.sourceMove || move;
+        atk.volatile.semiInvulnerable = move.origName;
+        logMsg(`🌀 ${escapeHTML(atk.name)} は ${escapeHTML(TWO_TURN_CHARGE_MESSAGES[move.origName] || '力をためている！')}`);
+        updateBattleUI();
+        return;
+    }
+    if (isTargetingOpponent(move) && def.volatile.semiInvulnerable) {
+        logMsg(`🌫️ ${escapeHTML(def.name)} は姿を隠していて技が当たらない！`);
+        return;
+    }
+
     if (isDirectPokemonTarget(move) && move.category === 'status' && hasAbility(atk, 'prankster') && def.types.includes('dark')) {
         logMsg(`🌑 ${escapeHTML(def.name)} には いたずらごころの技が効かなかった！`); return;
     }
@@ -2090,6 +2292,14 @@ async function performAction(atk, def, move, isPlayer) {
         logMsg(`🪞 ${escapeHTML(def.name)} の マジックミラー で技を跳ね返した！`);
         const reflected = { ...move, reflected: true, pp: Infinity };
         await performAction(def, atk, reflected, !isPlayer); return;
+    }
+
+    if (hasItem(atk, 'metronome') && isDamagingMove(move)) {
+        atk.itemState ||= { metronomeMove: null, metronomeCount: 0 };
+        if (atk.itemState.metronomeMove === move.origName) atk.itemState.metronomeCount = Math.min(6, atk.itemState.metronomeCount + 1);
+        else { atk.itemState.metronomeMove = move.origName; atk.itemState.metronomeCount = 1; }
+    } else if (atk.itemState) {
+        atk.itemState.metronomeMove = null; atk.itemState.metronomeCount = 0;
     }
 
     let flingData = null;
@@ -2116,8 +2326,10 @@ async function performAction(atk, def, move, isPlayer) {
 
     if (isTargetingOpponent(move) && def.volatile.protecting && !['feint', 'hyperspace-fury', 'hyperspace-hole', 'phantom-force', 'shadow-force'].includes(move.origName)) {
         logMsg(`🛡️ ${escapeHTML(def.name)} は攻撃から身を守った！`);
+        applyProtectContactEffect(atk, def, move, def.volatile.protectMove);
         return;
     }
+    if (move.origName === 'feint' && def.volatile.protecting) { def.volatile.protecting = false; def.volatile.protectMove = null; }
 
     if (effectiveMoveType(atk, move) === 'ground' && hasItem(def, 'air-balloon')) {
         logMsg(`🎈 ${escapeHTML(def.name)} は ふうせんで浮いているため当たらない！`);
@@ -2186,6 +2398,9 @@ async function performAction(atk, def, move, isPlayer) {
         await applyMoveAilment(atk, def, move, landedHit);
     }
     if (landedHit) await handlePostDamageSpecial(atk, def, move, isPlayer);
+    if (hasItem(atk, 'throat-spray') && moveHasFlag(move, 'sound') && (landedHit || move.category === 'status')) {
+        consumeHeldItem(atk); changeStat(atk, 'special-attack', 1, atk); logMsg(`🎤 ${escapeHTML(atk.name)} の のどスプレー が発動した！`);
+    }
 
     if (SELF_DESTRUCT_MOVES.has(move.origName)) {
         if (['healing-wish', 'lunar-dance'].includes(move.origName)) sideField(isPlayer).healingWish = true;
@@ -2338,14 +2553,16 @@ function calculateDamage(atk, def, move, isPlayer, hitIndex = 0) {
     const source = move.origName === 'foul-play' ? def : atk;
     let attack = source.stats[attackStat] * stageMultiplier(source.modifiers[attackStat]);
     let defense = def.stats[defenseStat] * stageMultiplier(def.modifiers[defenseStat]);
+    attack *= paradoxMultiplier(source, attackStat);
+    defense *= paradoxMultiplier(def, defenseStat);
     if (physical && ['huge-power', 'pure-power'].includes(source.ability)) attack *= 2;
     if (physical && hasAbility(atk, 'hustle')) attack *= 1.5;
     if (atk.status === 'brn' && physical && move.origName !== 'facade' && !hasAbility(atk, 'guts')) attack *= 0.5;
     if (atk.status !== 'none' && physical && hasAbility(atk, 'guts')) attack *= 1.5;
     if (physical && ['psn','tox'].includes(atk.status) && hasAbility(atk, 'toxic-boost')) attack *= 1.5;
     if (!physical && atk.status === 'brn' && hasAbility(atk, 'flare-boost')) attack *= 1.5;
-    if (!physical && hasAbility(atk, 'solar-power') && effectiveWeatherName() === 'sun') attack *= 1.5;
-    if (physical && hasAbility(atk, 'orichalcum-pulse') && effectiveWeatherName() === 'sun') attack *= 4 / 3;
+    if (!physical && hasAbility(atk, 'solar-power') && effectiveWeatherFor(atk) === 'sun') attack *= 1.5;
+    if (physical && hasAbility(atk, 'orichalcum-pulse') && effectiveWeatherFor(atk) === 'sun') attack *= 4 / 3;
     if (!physical && hasAbility(atk, 'hadron-engine') && State.field.terrain.name === 'electric') attack *= 4 / 3;
     if (hasAbility(atk, 'defeatist') && atk.stats.hp <= atk.stats.maxHp / 2) attack *= 0.5;
     if (hasAbility(atk, 'slow-start') && physical && (atk.abilityState?.slowStartTurns || 0) > 0) attack *= 0.5;
@@ -2372,8 +2589,9 @@ function calculateDamage(atk, def, move, isPlayer, hitIndex = 0) {
     let power = variablePower(atk, def, move, isPlayer);
     if (hasAbility(atk, 'technician') && power <= 60) power *= 1.5;
     let modifier = 1;
-    if (hasAbility(atk, 'tough-claws') && moveHasFlag(move, 'contact')) modifier *= 1.3;
+    if (hasAbility(atk, 'tough-claws') && makesEffectiveContact(atk, move)) modifier *= 1.3;
     if (hasAbility(atk, 'iron-fist') && moveHasFlag(move, 'punch')) modifier *= 1.2;
+    if (hasItem(atk, 'punching-glove') && moveHasFlag(move, 'punch')) modifier *= 1.1;
     if (hasAbility(atk, 'strong-jaw') && moveHasFlag(move, 'bite')) modifier *= 1.5;
     if (hasAbility(atk, 'mega-launcher') && moveHasFlag(move, 'pulse')) modifier *= 1.5;
     if (hasAbility(atk, 'sharpness') && moveHasFlag(move, 'slicing')) modifier *= 1.5;
@@ -2391,7 +2609,7 @@ function calculateDamage(atk, def, move, isPlayer, hitIndex = 0) {
     if (hasAbility(atk, 'dragons-maw') && moveType === 'dragon') modifier *= 1.5;
     if (hasAbility(atk, 'transistor') && moveType === 'electric') modifier *= 1.3;
     if (hasAbility(atk, 'water-bubble') && moveType === 'water') modifier *= 2;
-    if (hasAbility(atk, 'sand-force') && effectiveWeatherName() === 'sandstorm' && ['rock','ground','steel'].includes(moveType)) modifier *= 1.3;
+    if (hasAbility(atk, 'sand-force') && effectiveWeatherFor(atk) === 'sandstorm' && ['rock','ground','steel'].includes(moveType)) modifier *= 1.3;
     if (hasAbility(atk, 'analytic') && atk.abilityState?.movingLast) modifier *= 1.3;
     if (hasAbility(atk, 'stakeout') && def.abilityState?.justSwitched) modifier *= 2;
     if (hasAbility(atk, 'supreme-overlord')) {
@@ -2402,7 +2620,9 @@ function calculateDamage(atk, def, move, isPlayer, hitIndex = 0) {
     if (hasItem(atk, 'life-orb')) modifier *= 1.3;
     if (hasItem(atk, 'expert-belt') && typeMod > 1) modifier *= 1.2;
     if (TYPE_BOOST_ITEMS[atk.item] === moveType) modifier *= 1.2;
-    const activeWeather = effectiveWeatherName();
+    modifier *= getAuraPowerMultiplier(moveType);
+    if (hasItem(atk, 'metronome') && atk.itemState?.metronomeMove === move.origName) modifier *= 1 + Math.min(5, Math.max(0, atk.itemState.metronomeCount - 1)) * 0.2;
+    const activeWeather = (hasItem(atk, 'utility-umbrella') || hasItem(def, 'utility-umbrella')) ? 'none' : effectiveWeatherName();
     if (activeWeather === 'rain') modifier *= moveType === 'water' ? 1.5 : moveType === 'fire' ? 0.5 : 1;
     if (activeWeather === 'sun') modifier *= moveType === 'fire' ? 1.5 : moveType === 'water' ? 0.5 : 1;
     if (State.field.terrain.name === 'electric' && moveType === 'electric' && isGrounded(atk)) modifier *= 1.3;
@@ -2465,7 +2685,7 @@ function dealDamage(def, rawDamage, context) {
 async function applyAbilityOnDamagingHit(atk, def, move, dealt, result, isPlayer) {
     if (!dealt || dealt.hp <= 0) return;
     const moveType = effectiveMoveType(atk, move);
-    const contact = moveHasFlag(move, 'contact');
+    const contact = makesEffectiveContact(atk, move);
     const defenderAbilityActive = !ignoresAbilities(atk, def);
     const alive = def.stats.hp > 0;
 
@@ -2479,22 +2699,29 @@ async function applyAbilityOnDamagingHit(atk, def, move, dealt, result, isPlayer
     if (defenderAbilityActive && alive && result.isCritical && hasAbility(def, 'anger-point')) { def.modifiers.attack = 6; logMsg(`💢 ${escapeHTML(def.name)} の いかりのつぼ！ 攻撃が最大まで上がった！`); }
     if (defenderAbilityActive && alive && hasAbility(def, 'color-change') && !def.types.includes(moveType)) { def.types = [moveType]; logMsg(`🎨 ${escapeHTML(def.name)} は ${escapeHTML(TYPE_NAMES[moveType])}タイプになった！`); }
     if (defenderAbilityActive && hasAbility(def, 'toxic-debris') && move.category === 'physical') { const side = sideField(isPlayer); side.toxicSpikes = Math.min(2, side.toxicSpikes + 1); logMsg(`☠️ ${escapeHTML(def.name)} の どくげしょう！`); }
-    if (defenderAbilityActive && hasAbility(def, 'seed-sower')) { State.field.terrain = { name: 'grassy', turns: 5 }; logMsg(`🌱 ${escapeHTML(def.name)} の こぼれダネ！`); }
+    if (defenderAbilityActive && hasAbility(def, 'seed-sower')) { State.field.terrain = { name: 'grassy', turns: 5 }; logMsg(`🌱 ${escapeHTML(def.name)} の こぼれダネ！`); refreshActiveFieldItems(); }
     if (defenderAbilityActive && alive && hasAbility(def, 'electromorphosis')) { def.abilityState.charged = true; logMsg(`⚡ ${escapeHTML(def.name)} は でんきにかえる で充電した！`); }
     if (defenderAbilityActive && alive && hasAbility(def, 'wind-power') && moveHasFlag(move, 'wind')) { def.abilityState.charged = true; logMsg(`🌬️ ${escapeHTML(def.name)} は ふうりょくでんき で充電した！`); }
     if (defenderAbilityActive && alive && hasAbility(def, 'thermal-exchange') && moveType === 'fire') changeStat(def, 'attack', 1, def);
+    if (alive && hasItem(def, 'absorb-bulb') && moveType === 'water') { consumeHeldItem(def); changeStat(def, 'special-attack', 1, def); logMsg(`💧 ${escapeHTML(def.name)} の きゅうこん が発動した！`); }
+    if (alive && hasItem(def, 'cell-battery') && moveType === 'electric') { consumeHeldItem(def); changeStat(def, 'attack', 1, def); logMsg(`🔋 ${escapeHTML(def.name)} の じゅうでんち が発動した！`); }
+    if (alive && hasItem(def, 'luminous-moss') && moveType === 'water') { consumeHeldItem(def); changeStat(def, 'special-defense', 1, def); logMsg(`✨ ${escapeHTML(def.name)} の ひかりごけ が発動した！`); }
+    if (alive && hasItem(def, 'snowball') && moveType === 'ice') { consumeHeldItem(def); changeStat(def, 'attack', 1, def); logMsg(`❄️ ${escapeHTML(def.name)} の ゆきだま が発動した！`); }
 
+    if (contact && atk.stats.hp > 0 && hasItem(def, 'rocky-helmet') && !hasAbility(atk, 'magic-guard')) {
+        atk.stats.hp = Math.max(0, atk.stats.hp - Math.max(1, Math.floor(atk.stats.maxHp / 6)));
+        logMsg(`🪨 ${escapeHTML(atk.name)} は ゴツゴツメット のダメージを受けた！`);
+    }
     if (contact && atk.stats.hp > 0 && defenderAbilityActive) {
-        if (hasItem(def, 'rocky-helmet') && !hasAbility(atk, 'magic-guard')) { atk.stats.hp = Math.max(0, atk.stats.hp - Math.max(1, Math.floor(atk.stats.maxHp / 6))); logMsg(`🪨 ${escapeHTML(atk.name)} は ゴツゴツメット のダメージを受けた！`); }
         if (['rough-skin','iron-barbs'].includes(def.ability) && !hasAbility(atk, 'magic-guard')) { atk.stats.hp = Math.max(0, atk.stats.hp - Math.max(1, Math.floor(atk.stats.maxHp / 8))); logMsg(`🩹 ${escapeHTML(atk.name)} は ${escapeHTML(abilityName(def.ability))} で傷ついた！`); }
         if (hasAbility(def, 'static') && chance(30)) applyMajorStatus(atk, 'par', def);
         if (hasAbility(def, 'flame-body') && chance(30)) applyMajorStatus(atk, 'brn', def);
         if (hasAbility(def, 'poison-point') && chance(30)) applyMajorStatus(atk, 'psn', def);
         if (hasAbility(def, 'effect-spore') && !atk.types.includes('grass') && !hasAbility(atk, 'overcoat') && !hasItem(atk, 'safety-goggles') && chance(30)) { const choices=['par','psn','slp']; applyMajorStatus(atk, choices[Math.floor(Math.random()*choices.length)], def); }
         if (hasAbility(def, 'gooey') || hasAbility(def, 'tangling-hair')) changeStat(atk, 'speed', -1, def);
-        if (hasAbility(def, 'mummy') && !ABILITY_CANNOT_BE_REPLACED.has(atk.ability) && atk.ability !== 'mummy') { atk.ability = 'mummy'; logMsg(`⚰️ ${escapeHTML(atk.name)} の特性が ミイラ になった！`); }
-        if (hasAbility(def, 'lingering-aroma') && !ABILITY_CANNOT_BE_REPLACED.has(atk.ability) && atk.ability !== 'lingering-aroma') { atk.ability = 'lingering-aroma'; logMsg(`🌸 ${escapeHTML(atk.name)} の特性が とれないにおい になった！`); }
-        if (hasAbility(def, 'wandering-spirit') && !ABILITY_CANNOT_BE_REPLACED.has(atk.ability) && atk.ability !== 'wandering-spirit' && !ABILITY_CANNOT_BE_REPLACED.has(def.ability)) { [atk.ability, def.ability] = [def.ability, atk.ability]; logMsg(`👻 ${escapeHTML(atk.name)} と ${escapeHTML(def.name)} の特性が入れ替わった！`); }
+        if (hasAbility(def, 'mummy') && !hasItem(atk, 'ability-shield') && !ABILITY_CANNOT_BE_REPLACED.has(atk.ability) && atk.ability !== 'mummy') { atk.ability = 'mummy'; logMsg(`⚰️ ${escapeHTML(atk.name)} の特性が ミイラ になった！`); }
+        if (hasAbility(def, 'lingering-aroma') && !hasItem(atk, 'ability-shield') && !ABILITY_CANNOT_BE_REPLACED.has(atk.ability) && atk.ability !== 'lingering-aroma') { atk.ability = 'lingering-aroma'; logMsg(`🌸 ${escapeHTML(atk.name)} の特性が とれないにおい になった！`); }
+        if (hasAbility(def, 'wandering-spirit') && !hasItem(atk, 'ability-shield') && !hasItem(def, 'ability-shield') && !ABILITY_CANNOT_BE_REPLACED.has(atk.ability) && atk.ability !== 'wandering-spirit' && !ABILITY_CANNOT_BE_REPLACED.has(def.ability)) { [atk.ability, def.ability] = [def.ability, atk.ability]; logMsg(`👻 ${escapeHTML(atk.name)} と ${escapeHTML(def.name)} の特性が入れ替わった！`); }
         if (hasAbility(def, 'perish-body')) { atk.volatile.perish = def.volatile.perish = 3; logMsg('🎵 ほろびのボディで滅びのカウントが始まった！'); }
         if (alive && hasAbility(def, 'pickpocket') && !def.item && atk.item) { const stolen=atk.item; def.item = stolen; atk.item = null; markItemLost(atk, stolen); logMsg(`👜 ${escapeHTML(def.name)} は相手の道具を盗んだ！`); }
     }
@@ -2680,13 +2907,50 @@ async function applyMoveAilment(atk, def, move, landedHit) {
             logMsg(`✨ ${escapeHTML(def.name)} は ${escapeHTML(berry)} で混乱を治した！`);
         }
     } else if (move.effect === 'trap') {
-        def.volatile.trapped = Math.max(def.volatile.trapped, 4);
+        def.volatile.trapped = Math.max(def.volatile.trapped, hasItem(atk, 'grip-claw') ? 7 : 4);
+        def.volatile.trappedBy = atk;
         logMsg(`⛓️ ${escapeHTML(def.name)} は拘束された！`);
     } else if (move.effect === 'flinch' && canFlinch(def)) {
         def.volatile.flinch = true;
     }
     updateBattleUI();
     await sleep(200);
+}
+
+function makesEffectiveContact(atk, move) {
+    if (!moveHasFlag(move, 'contact')) return false;
+    if (hasItem(atk, 'protective-pads')) return false;
+    if (hasItem(atk, 'punching-glove') && moveHasFlag(move, 'punch')) return false;
+    return true;
+}
+function applyProtectContactEffect(atk, def, move, protectMove) {
+    if (!makesEffectiveContact(atk, move) || atk.stats.hp <= 0) return;
+    switch (protectMove) {
+        case 'spiky-shield':
+            if (!hasAbility(atk, 'magic-guard')) { const damage = Math.max(1, Math.floor(atk.stats.maxHp / 8)); atk.stats.hp = Math.max(0, atk.stats.hp - damage); logMsg(`🌵 ${escapeHTML(atk.name)} はニードルガードで傷ついた！`); }
+            break;
+        case 'baneful-bunker': applyMajorStatus(atk, 'psn', def); break;
+        case 'kings-shield': changeStat(atk, 'attack', -1, def); break;
+        case 'obstruct': changeStat(atk, 'defense', -2, def); break;
+        case 'silk-trap': changeStat(atk, 'speed', -1, def); break;
+        case 'burning-bulwark': applyMajorStatus(atk, 'brn', def); break;
+        default: break;
+    }
+    updateBattleUI();
+}
+function tryProtectMove(atk, move) {
+    const chain = Math.max(0, atk.volatile.protectChain || 0);
+    const failureChance = Math.min(1, chain / 3);
+    if (Math.random() < failureChance) {
+        atk.volatile.protecting = false; atk.volatile.protectMove = null; atk.volatile.protectChain = 0;
+        logMsg(`❌ ${escapeHTML(atk.name)} の ${escapeHTML(move.name)} は失敗した！`);
+        return false;
+    }
+    atk.volatile.protecting = true;
+    atk.volatile.protectMove = move.origName;
+    atk.volatile.protectChain = chain + 1;
+    logMsg(`🛡️ ${escapeHTML(atk.name)} は守りの体勢に入った！`);
+    return true;
 }
 
 async function handleSpecialStatusMove(atk, def, move, isPlayer) {
@@ -2709,16 +2973,16 @@ async function handleSpecialStatusMove(atk, def, move, isPlayer) {
             for (const key of keys) [State.field.player[key], State.field.enemy[key]] = [State.field.enemy[key], State.field.player[key]];
             logMsg('🔄 お互いの場の効果が入れ替わった！'); return true;
         }
-        case 'rain-dance': State.field.weather = { name: 'rain', turns: turnsForWeather('damp-rock') }; logMsg('🌧️ 雨が降り始めた！'); return true;
-        case 'sunny-day': State.field.weather = { name: 'sun', turns: turnsForWeather('heat-rock') }; logMsg('☀️ 日差しが強くなった！'); return true;
-        case 'sandstorm': State.field.weather = { name: 'sandstorm', turns: turnsForWeather('smooth-rock') }; logMsg('🏜️ 砂あらしが吹き始めた！'); return true;
-        case 'hail': State.field.weather = { name: 'hail', turns: turnsForWeather('icy-rock') }; logMsg('🌨️ あられが降り始めた！'); return true;
-        case 'snowscape': State.field.weather = { name: 'snow', turns: turnsForWeather('icy-rock') }; logMsg('❄️ 雪が降り始めた！'); return true;
-        case 'electric-terrain': State.field.terrain = { name: 'electric', turns: hasItem(atk, 'terrain-extender') ? 8 : 5 }; logMsg('⚡ エレキフィールドになった！'); return true;
-        case 'grassy-terrain': State.field.terrain = { name: 'grassy', turns: hasItem(atk, 'terrain-extender') ? 8 : 5 }; logMsg('🌱 グラスフィールドになった！'); return true;
-        case 'misty-terrain': State.field.terrain = { name: 'misty', turns: hasItem(atk, 'terrain-extender') ? 8 : 5 }; logMsg('🌫️ ミストフィールドになった！'); return true;
-        case 'psychic-terrain': State.field.terrain = { name: 'psychic', turns: hasItem(atk, 'terrain-extender') ? 8 : 5 }; logMsg('🔮 サイコフィールドになった！'); return true;
-        case 'trick-room': State.field.trickRoom = State.field.trickRoom > 0 ? 0 : 5; logMsg('🌀 素早さの関係が逆転した！'); return true;
+        case 'rain-dance': State.field.weather = { name: 'rain', turns: turnsForWeather('damp-rock') }; logMsg('🌧️ 雨が降り始めた！'); refreshActiveParadoxBoosts(true); return true;
+        case 'sunny-day': State.field.weather = { name: 'sun', turns: turnsForWeather('heat-rock') }; logMsg('☀️ 日差しが強くなった！'); refreshActiveParadoxBoosts(true); return true;
+        case 'sandstorm': State.field.weather = { name: 'sandstorm', turns: turnsForWeather('smooth-rock') }; logMsg('🏜️ 砂あらしが吹き始めた！'); refreshActiveParadoxBoosts(true); return true;
+        case 'hail': State.field.weather = { name: 'hail', turns: turnsForWeather('icy-rock') }; logMsg('🌨️ あられが降り始めた！'); refreshActiveParadoxBoosts(true); return true;
+        case 'snowscape': State.field.weather = { name: 'snow', turns: turnsForWeather('icy-rock') }; logMsg('❄️ 雪が降り始めた！'); refreshActiveParadoxBoosts(true); return true;
+        case 'electric-terrain': State.field.terrain = { name: 'electric', turns: hasItem(atk, 'terrain-extender') ? 8 : 5 }; logMsg('⚡ エレキフィールドになった！'); refreshActiveFieldItems(); return true;
+        case 'grassy-terrain': State.field.terrain = { name: 'grassy', turns: hasItem(atk, 'terrain-extender') ? 8 : 5 }; logMsg('🌱 グラスフィールドになった！'); refreshActiveFieldItems(); return true;
+        case 'misty-terrain': State.field.terrain = { name: 'misty', turns: hasItem(atk, 'terrain-extender') ? 8 : 5 }; logMsg('🌫️ ミストフィールドになった！'); refreshActiveFieldItems(); return true;
+        case 'psychic-terrain': State.field.terrain = { name: 'psychic', turns: hasItem(atk, 'terrain-extender') ? 8 : 5 }; logMsg('🔮 サイコフィールドになった！'); refreshActiveFieldItems(); return true;
+        case 'trick-room': State.field.trickRoom = State.field.trickRoom > 0 ? 0 : 5; logMsg('🌀 素早さの関係が逆転した！'); if (State.field.trickRoom > 0) refreshActiveFieldItems(); return true;
         case 'tailwind':
             own.tailwind = 4; logMsg('🌪️ 味方の場に追い風が吹いた！');
             if (hasAbility(atk, 'wind-rider')) changeStat(atk, 'attack', 1, atk);
@@ -2752,12 +3016,15 @@ async function handleSpecialStatusMove(atk, def, move, isPlayer) {
         case 'topsy-turvy': Object.keys(def.modifiers).forEach(stat => { def.modifiers[stat] *= -1; }); logMsg(`🙃 ${escapeHTML(def.name)} の能力変化が逆転した！`); return true;
         case 'taunt':
             if (hasAbility(def, 'oblivious') || hasAbility(def, 'aroma-veil')) logMsg(`🛡️ ${escapeHTML(def.name)} は ${escapeHTML(abilityName(def.ability))} でちょうはつを防いだ！`);
-            else { def.volatile.taunt = 3; logMsg(`😠 ${escapeHTML(def.name)} はちょうはつされ、変化技を出せなくなった！`); }
+            else {
+                def.volatile.taunt = 3; logMsg(`😠 ${escapeHTML(def.name)} はちょうはつされ、変化技を出せなくなった！`);
+                if (hasItem(def, 'mental-herb')) { consumeHeldItem(def); def.volatile.taunt = 0; logMsg(`🌿 ${escapeHTML(def.name)} は メンタルハーブ でちょうはつを治した！`); }
+            }
             return true;
         case 'perish-song': atk.volatile.perish = def.volatile.perish = 3; logMsg('🎵 両方のポケモンに滅びのカウントが始まった！'); return true;
         case 'roar': case 'whirlwind': await forceSwitchTarget(def, !isPlayer, atk); return true;
         case 'protect': case 'detect': case 'spiky-shield': case 'kings-shield': case 'baneful-bunker': case 'obstruct': case 'silk-trap': case 'burning-bulwark':
-            atk.volatile.protecting = true; logMsg(`🛡️ ${escapeHTML(atk.name)} は守りの体勢に入った！`); return true;
+            tryProtectMove(atk, move); return true;
         case 'splash': case 'celebrate': case 'hold-hands': case 'happy-hour': logMsg('……しかし何も起こらなかった！'); return true;
         default: return false;
     }
@@ -2842,7 +3109,10 @@ async function applyEndTurnEffects() {
                 pk.toxicCounter = Math.min(15, pk.toxicCounter + 1);
             }
         }
-        if (pk.volatile.trapped > 0) damageEndTurn(pk, Math.floor(pk.stats.maxHp / 8), '拘束');
+        if (pk.volatile.trapped > 0) {
+            const binder = pk.volatile.trappedBy;
+            damageEndTurn(pk, Math.floor(pk.stats.maxHp * (binder && hasItem(binder, 'binding-band') ? 1 / 6 : 1 / 8)), '拘束');
+        }
         if (pk.volatile.saltCure) damageEndTurn(pk, Math.floor(pk.stats.maxHp * (pk.types.some(type => ['water', 'steel'].includes(type)) ? 1 / 4 : 1 / 8)), 'しおづけ');
         if (pk.volatile.seeded) {
             const amount = Math.max(1, Math.floor(pk.stats.maxHp / 8));
@@ -2850,7 +3120,7 @@ async function applyEndTurnEffects() {
             const receiver = isPlayer ? enemy : player;
             if (drained > 0 && receiver?.stats.hp > 0) healPokemon(receiver, drained, `${receiver.name} はやどりぎで回復した！`);
         }
-        const weather = effectiveWeatherName();
+        const weather = effectiveWeatherFor(pk);
         if (hasAbility(pk, 'rain-dish') && weather === 'rain') healPokemon(pk, Math.floor(pk.stats.maxHp / 16), `${pk.name} は あめうけざら で回復した！`);
         if (hasAbility(pk, 'ice-body') && ['hail','snow'].includes(weather)) healPokemon(pk, Math.floor(pk.stats.maxHp / 16), `${pk.name} は アイスボディ で回復した！`);
         if (hasAbility(pk, 'dry-skin')) { if (weather === 'rain') healPokemon(pk, Math.floor(pk.stats.maxHp / 8), `${pk.name} は かんそうはだ で回復した！`); if (weather === 'sun') damageEndTurn(pk, Math.floor(pk.stats.maxHp / 8), 'かんそうはだ'); }
@@ -2900,13 +3170,13 @@ function decrementTimers() {
     for (const side of [State.field.player, State.field.enemy]) {
         for (const key of ['reflect', 'lightScreen', 'tailwind']) if (side[key] > 0) side[key]--;
     }
-    if (State.field.weather.turns > 0 && --State.field.weather.turns === 0) { State.field.weather.name = 'none'; logMsg('🌤️ 天候が元に戻った。'); }
-    if (State.field.terrain.turns > 0 && --State.field.terrain.turns === 0) { State.field.terrain.name = 'none'; logMsg('🌍 フィールドが元に戻った。'); }
+    if (State.field.weather.turns > 0 && --State.field.weather.turns === 0) { State.field.weather.name = 'none'; logMsg('🌤️ 天候が元に戻った。'); refreshActiveParadoxBoosts(true); }
+    if (State.field.terrain.turns > 0 && --State.field.terrain.turns === 0) { State.field.terrain.name = 'none'; logMsg('🌍 フィールドが元に戻った。'); refreshActiveParadoxBoosts(true); }
     if (State.field.trickRoom > 0 && --State.field.trickRoom === 0) logMsg('🌀 トリックルームが元に戻った。');
     for (const pk of [State.playerTeam[State.activePlayerIdx], State.enemyTeam[State.activeEnemyIdx]]) {
         if (!pk) continue;
         if (pk.volatile.taunt > 0) pk.volatile.taunt--;
-        if (pk.volatile.trapped > 0) pk.volatile.trapped--;
+        if (pk.volatile.trapped > 0) { pk.volatile.trapped--; if (pk.volatile.trapped <= 0) pk.volatile.trappedBy = null; }
         if (pk.volatile.disableTurns > 0 && --pk.volatile.disableTurns === 0) pk.volatile.disabledMove = null;
         if ((pk.abilityState?.slowStartTurns || 0) > 0) pk.abilityState.slowStartTurns--;
         pk.abilityState.justSwitched = false;
@@ -2956,7 +3226,7 @@ function resetOnSwitch(pk, isLeaving = true) {
     if (isLeaving && hasAbility(pk, 'regenerator') && pk.stats.hp > 0) pk.stats.hp = Math.min(pk.stats.maxHp, pk.stats.hp + Math.floor(pk.stats.maxHp / 3));
     pk.types = pk.isMega && pk.megaProfile ? [...pk.megaProfile.types] : [...(pk.originalTypes || pk.types)];
     pk.modifiers = { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 };
-    pk.volatile.flinch = false; pk.volatile.protecting = false; pk.volatile.confused = 0; pk.volatile.taunt = 0; pk.volatile.trapped = 0;
+    pk.volatile.flinch = false; pk.volatile.protecting = false; pk.volatile.protectMove = null; pk.volatile.protectChain = 0; clearChargeState(pk); pk.volatile.confused = 0; pk.volatile.taunt = 0; pk.volatile.trapped = 0;
     pk.volatile.seeded = false; pk.volatile.saltCure = false; pk.volatile.substitute = 0; pk.volatile.perish = 0;
     pk.volatile.micle = false; pk.volatile.focusEnergy = 0; pk.volatile.flashFire = false; pk.volatile.disabledMove = null; pk.volatile.disableTurns = 0; pk.volatile.faintEventProcessed = false; pk.volatile.lastHitCritical = false;
     pk.abilityState.proteanUsed = false; pk.abilityState.unburden = false; pk.abilityState.justSwitched = !isLeaving; pk.abilityState.charged = false; pk.abilityState.slowStartTurns = 0;

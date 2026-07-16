@@ -2211,11 +2211,15 @@ function checkAccuracy(atk, def, move) {
     if (atk.volatile.micle) { accuracy *= 1.2; atk.volatile.micle = false; }
     return chance(accuracy);
 }
-function getAttackTypeMultiplier(atk, moveType, def) {
-    if (hasAbility(atk, 'scrappy') && ['normal', 'fighting'].includes(moveType) && def.types.includes('ghost')) {
-        return def.types.reduce((mod, type) => mod * (type === 'ghost' ? 1 : (TYPE_CHART[moveType]?.[type] ?? 1)), 1);
-    }
-    return getMultiplier(moveType, def.types);
+function getAttackTypeMultiplier(atk, moveType, def, move = null) {
+    return def.types.reduce((mod, type) => {
+        // フリーズドライは、こおり技でありながら、みずタイプに対して効果抜群になる。
+        // 複合タイプでは、みず側を2倍として、もう一方のタイプ相性も通常どおり掛け合わせる。
+        if (move?.origName === 'freeze-dry' && type === 'water') return mod * 2;
+        // きもったまはノーマル・かくとう技のゴースト無効だけを解除する。
+        if (hasAbility(atk, 'scrappy') && ['normal', 'fighting'].includes(moveType) && type === 'ghost') return mod;
+        return mod * (TYPE_CHART[moveType]?.[type] ?? 1);
+    }, 1);
 }
 function handleAbilityImmunity(atk, def, move) {
     if (ignoresAbilities(atk, def)) return false;
@@ -2236,7 +2240,7 @@ function handleAbilityImmunity(atk, def, move) {
     if (moveType === 'electric' && hasAbility(def, 'lightning-rod')) return immunity(abilityName(def.ability), () => changeStat(def, 'special-attack', 1, def));
     if (moveType === 'electric' && hasAbility(def, 'motor-drive')) return immunity(abilityName(def.ability), () => changeStat(def, 'speed', 1, def));
     if (moveType === 'grass' && hasAbility(def, 'sap-sipper')) return immunity(abilityName(def.ability), () => changeStat(def, 'attack', 1, def));
-    const typeMod = getAttackTypeMultiplier(atk, moveType, def);
+    const typeMod = getAttackTypeMultiplier(atk, moveType, def, move);
     if (isDamagingMove(move) && hasAbility(def, 'wonder-guard') && typeMod <= 1) return immunity(abilityName(def.ability));
     return false;
 }
@@ -2319,7 +2323,7 @@ function fixedDamage(atk, def, move) {
 
 function calculateDamage(atk, def, move, isPlayer, hitIndex = 0) {
     const moveType = effectiveMoveType(atk, move);
-    const typeMod = getAttackTypeMultiplier(atk, moveType, def);
+    const typeMod = getAttackTypeMultiplier(atk, moveType, def, move);
     if (typeMod === 0) return { damage: 0, typeMod, isCritical: false, missedByImmunity: true };
     if (OHKO_MOVES.has(move.origName)) return { damage: def.stats.hp, typeMod, isCritical: false, missedByImmunity: false };
     const fixed = fixedDamage(atk, def, move);

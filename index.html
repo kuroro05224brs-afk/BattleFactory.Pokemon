@@ -458,7 +458,7 @@
 'use strict';
 
 const POKE_API = 'https://pokeapi.co/api/v2';
-const CATALOG_CACHE_KEY = 'battle-factory-pokeapi-catalog-v4-mega';
+const CATALOG_CACHE_KEY = 'battle-factory-pokeapi-catalog-v6-primal-rayquaza';
 const CATALOG_TTL = 7 * 24 * 60 * 60 * 1000; // 一覧は7日間再利用して起動時通信を削減
 
 const TYPE_CHART = {
@@ -635,6 +635,9 @@ const RESIST_BERRIES = {
     steel: 'babiri-berry', fairy: 'roseli-berry', normal: 'chilan-berry'
 };
 const MEGA_STONE_RATE = 0.25; // メガ対応個体でも通常もちものが主候補になるよう調整
+const PRIMAL_ORB_RATE = 0.25; // ゲンシカイキ用の専用道具もメガストーンと同率で抽選
+const PRIMAL_ORBS = Object.freeze({ groudon: 'red-orb', kyogre: 'blue-orb' });
+const PRIMAL_FORM_SLUGS = new Set(['groudon-primal', 'kyogre-primal']);
 
 const ABILITY_NAMES = {
     'adaptability':'てきおうりょく','aerilate':'スカイスキン','pixilate':'フェアリースキン','refrigerate':'フリーズスキン','galvanize':'エレキスキン',
@@ -899,7 +902,7 @@ const State = {
     playerTeam: [], enemyTeam: [], draftPool: [], activePlayerIdx: 0, activeEnemyIdx: 0, turn: 1,
     field: null,
     megaUsed: { player: false, enemy: false },
-    catalog: { pokemon: [], pokemonTotal: 0, moveTotal: 0, itemTotal: 0, activeHeldItems: [], excludedMega: 0, megaResources: {}, fallback: false },
+    catalog: { pokemon: [], pokemonTotal: 0, moveTotal: 0, itemTotal: 0, activeHeldItems: [], excludedMega: 0, excludedPrimal: 0, megaResources: {}, fallback: false },
     audit: { unsupportedHeldItems: [], unsupportedAbilities: new Set(), sampledRejectedMoves: new Set(), apiErrors: [], detailedComplete: false, detailedLoading: false },
     ai: {
         enemySwitchCooldown: 0,
@@ -1018,6 +1021,9 @@ function applyTheme(themeKey) {
 function isMegaPokemonName(name) {
     return String(name).split('-').includes('mega');
 }
+function isPrimalPokemonName(name) {
+    return PRIMAL_FORM_SLUGS.has(String(name));
+}
 function itemName(slug) {
     if (!slug) return 'なし';
     const api = State.cache.items[`${POKE_API}/item/${slug}`];
@@ -1077,15 +1083,15 @@ function megaVariantFromSlug(slug) {
 }
 function buildMegaDefinition(pokemon, raw) {
     const variant = raw.variant || megaVariantFromSlug(raw.apiSlug);
-    const stone = `mega-stone:${raw.apiSlug}`;
     const baseLabel = pokemon.baseName || pokemon.name;
     const displayVariant = ({ X: 'Ｘ', Y: 'Ｙ', Z: 'Ｚ' })[variant] || variant;
-    const stoneJa = `${baseLabel}ナイト${displayVariant}`;
-    ITEM_DEFS[stone] = ITEM_DEFS[stone] || { ja: stoneJa };
+    const stone = raw.noStone ? null : `mega-stone:${raw.apiSlug}`;
+    const stoneJa = stone ? `${baseLabel}ナイト${displayVariant}` : '';
+    if (stone) ITEM_DEFS[stone] = ITEM_DEFS[stone] || { ja: stoneJa };
     return {
         ...raw, variant, stone, stoneJa,
         displayName: `メガ${baseLabel}${displayVariant}`,
-        apiUrl: State.catalog.megaResources?.[raw.apiSlug] || null
+        apiUrl: raw.apiUrl || State.catalog.megaResources?.[raw.apiSlug] || null
     };
 }
 function getMegaOptions(pokemon) {
@@ -1096,6 +1102,20 @@ function getMegaOptions(pokemon) {
     for (const [name, url] of Object.entries(State.catalog.megaResources || {})) {
         if (name === 'rayquaza-mega') continue;
         if (prefixes.some(prefix => name.startsWith(`${prefix}-mega`))) candidates.push({ apiSlug: name, apiUrl: url, source: 'pokeapi' });
+    }
+    // レックウザはメガストーンを必要とせず、ガリョウテンセイを覚えている場合だけ候補になる。
+    if (pokemon.speciesKey === 'rayquaza' && pokemon.moves?.some(move => move.origName === 'dragon-ascent')) {
+        candidates.push({
+            apiSlug: 'rayquaza-mega',
+            apiUrl: State.catalog.megaResources?.['rayquaza-mega'] || null,
+            source: 'pokeapi',
+            noStone: true,
+            requiresMove: 'dragon-ascent',
+            types: ['dragon', 'flying'],
+            ability: 'delta-stream',
+            stats: { hp: 105, attack: 180, defense: 100, 'special-attack': 180, 'special-defense': 100, speed: 115 },
+            role: 'mixed'
+        });
     }
     for (const raw of ZA_MEGA_DEFS[pokemon.speciesKey] || []) candidates.push({ ...raw, source: 'za' });
     for (const raw of candidates) {
@@ -1207,11 +1227,13 @@ async function loadCatalogs() {
 
     if (pokemonList?.results?.length) {
         const megaEntries = pokemonList.results.filter(resource => isMegaPokemonName(resource.name));
-        const playable = pokemonList.results.filter(resource => !isMegaPokemonName(resource.name));
+        // ゲンシカイキ個体は通常抽選しない。通常個体＋専用道具からのみ戦闘中に変化させる。
+        const playable = pokemonList.results.filter(resource => !isMegaPokemonName(resource.name) && !isPrimalPokemonName(resource.name));
         State.catalog.pokemon = playable;
         State.catalog.megaResources = Object.fromEntries(megaEntries.map(resource => [resource.name, resource.url]));
         State.catalog.pokemonTotal = pokemonList.count;
         State.catalog.excludedMega = megaEntries.length;
+        State.catalog.excludedPrimal = pokemonList.results.filter(resource => isPrimalPokemonName(resource.name)).length;
         State.catalog.fallback = false;
     } else {
         State.catalog.pokemon = Array.from({ length: 1010 }, (_, index) => ({
@@ -1219,6 +1241,7 @@ async function loadCatalogs() {
         }));
         State.catalog.pokemonTotal = 1010;
         State.catalog.excludedMega = 0;
+        State.catalog.excludedPrimal = 0;
         State.catalog.megaResources = {};
         State.catalog.fallback = true;
     }
@@ -1235,6 +1258,7 @@ async function loadCatalogs() {
         itemTotal: State.catalog.itemTotal,
         activeHeldItems: [],
         excludedMega: State.catalog.excludedMega,
+        excludedPrimal: State.catalog.excludedPrimal,
         megaResources: State.catalog.megaResources,
         fallback: State.catalog.fallback
     });
@@ -1261,6 +1285,7 @@ async function runDetailedAudit(button) {
                 itemTotal: State.catalog.itemTotal,
                 activeHeldItems: State.catalog.activeHeldItems,
                 excludedMega: State.catalog.excludedMega,
+                excludedPrimal: State.catalog.excludedPrimal,
                 megaResources: State.catalog.megaResources,
                 fallback: State.catalog.fallback
             });
@@ -1276,7 +1301,7 @@ function renderAudit() {
     const supportedHeld = State.catalog.activeHeldItems.filter(item => ITEM_DEFS[item.name]).length;
     const pokemonText = State.catalog.fallback
         ? 'ポケモン一覧の取得に失敗したため、旧上限1010件へフォールバック中'
-        : `ポケモン ${State.catalog.pokemonTotal}件中、メガ進化${State.catalog.excludedMega}件を除く${State.catalog.pokemon.length}件を抽選対象`;
+        : `ポケモン ${State.catalog.pokemonTotal}件中、メガ進化${State.catalog.excludedMega}件・ゲンシ形態${State.catalog.excludedPrimal || 0}件を除く${State.catalog.pokemon.length}件を抽選対象`;
     const moveText = State.catalog.moveTotal
         ? `技 ${State.catalog.moveTotal}件（件数のみ高速確認）。選出された技は個別データで動作可否を判定`
         : '技の総件数は未取得。選出された技の個別安全判定は有効';
@@ -1293,6 +1318,7 @@ function renderAudit() {
         <span>${escapeHTML(itemText)}</span>
         <span>メガシンカ: ポケモンデータ収録形態は実データを遅延取得／レジェンズ Z-A・メガディメンションの新規45形態は内蔵互換データで補完</span>
         ${State.audit.unsupportedHeldItems.length ? `<span>未実装の持ち物: ${State.audit.unsupportedHeldItems.length}件（英語の内部名は画面に表示しません）</span>` : ''}
+        <span>技説明: 各ポケモンが最後に習得できた作品以前の日本語説明を採用／めざめるパワーは個体値による動的タイプに対応</span>
         <span>特性レビュー ${ABILITY_REVIEW_VERSION}: 物理被弾・道具抑制・登場・攻撃・被弾・撃破・終了・交代イベントを再監査／今回抽選で表示のみ ${State.audit.unsupportedAbilities.size}件</span>
         ${State.audit.unsupportedAbilities.size ? `<span>未実装特性も正式名称を表示しますが、効果は安全に無処理です。対応済みと誤表示しないよう監査件数へ分離しています。</span>` : ''}
         <div class="api-audit-actions">${detailAction}</div>
@@ -1527,7 +1553,10 @@ function fallbackMegaBaseStats(pokemon, definition) {
     return result;
 }
 async function prepareMegaProfile(pokemon) {
-    const definition = pokemon.megaOptions.find(option => option.stone === pokemon.item);
+    const definition = pokemon.megaOptions.find(option => {
+        if (option.requiresMove) return pokemon.moves?.some(move => move.origName === option.requiresMove);
+        return option.stone === pokemon.item;
+    });
     if (!definition) { pokemon.megaProfile = null; return; }
     let apiData = null;
     if (definition.apiUrl) apiData = await fetchAPI(definition.apiUrl, State.cache.pokemon, 0, 7000);
@@ -1541,16 +1570,22 @@ async function prepareMegaProfile(pokemon) {
         name: definition.displayName,
         apiName: definition.apiSlug,
         types: apiData?.types?.map(entry => entry.type.name) || definition.types || pokemon.types,
-        baseStats: Object.keys(apiStats).length ? apiStats : fallbackMegaBaseStats(pokemon, definition),
-        ability: megaAbilityEntry?.name || pokemon.ability,
+        baseStats: Object.keys(apiStats).length ? apiStats : (definition.stats ? { ...definition.stats } : fallbackMegaBaseStats(pokemon, definition)),
+        ability: megaAbilityEntry?.name || definition.ability || pokemon.ability,
         spriteF: apiData?.sprites?.front_default || apiData?.sprites?.other?.home?.front_default || apiData?.sprites?.other?.['official-artwork']?.front_default || fallbackImage,
         spriteB: apiData?.sprites?.back_default || '',
         weight: apiData?.weight || pokemon.weight,
         source: apiData ? 'pokeapi' : 'za-fallback'
     };
 }
+function megaRequirementMet(pk) {
+    const definition = pk?.megaProfile?.definition;
+    if (!definition) return false;
+    if (definition.requiresMove) return pk.moves?.some(move => move.origName === definition.requiresMove);
+    return Boolean(definition.stone && pk.item === definition.stone);
+}
 function canMegaEvolve(pk, isPlayer) {
-    return Boolean(pk && pk.stats.hp > 0 && !pk.isMega && pk.megaProfile && pk.item === pk.megaProfile.definition.stone && !State.megaUsed[megaSideKey(isPlayer)]);
+    return Boolean(pk && pk.stats.hp > 0 && !pk.isMega && pk.megaProfile && megaRequirementMet(pk) && !State.megaUsed[megaSideKey(isPlayer)]);
 }
 async function applyMegaEvolution(pk, isPlayer) {
     if (!canMegaEvolve(pk, isPlayer)) return false;
@@ -1599,8 +1634,37 @@ function revertMegaEvolution(pk) {
 function cleanFlavorText(value) {
     return String(value || '').replace(/[\n\f\r]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
-function latestJapaneseMoveText(apiMove) {
-    const entries = (apiMove.flavor_text_entries || []).filter(entry => ['ja-Hrkt', 'ja'].includes(entry.language?.name));
+function versionGroupOrder(resource) {
+    if (!resource) return 0;
+    return parseIdFromUrl(resource.url) || 0;
+}
+function latestMoveLearnVersionGroup(moveEntry) {
+    const details = moveEntry?.version_group_details || [];
+    return details
+        .map(detail => ({
+            name: detail.version_group?.name || '',
+            url: detail.version_group?.url || '',
+            order: versionGroupOrder(detail.version_group)
+        }))
+        .sort((a, b) => a.order - b.order)
+        .at(-1) || null;
+}
+function latestJapaneseMoveText(apiMove, preferredVersionGroup = null) {
+    const entries = (apiMove.flavor_text_entries || [])
+        .filter(entry => ['ja-Hrkt', 'ja'].includes(entry.language?.name))
+        .map(entry => ({ ...entry, order: versionGroupOrder(entry.version_group) }))
+        .sort((a, b) => a.order - b.order);
+    if (!entries.length) return '';
+
+    // 技を実際に覚えられた最後の作品以前から説明文を選ぶ。
+    // これにより、現行作に登場しない技へ後世代の内部説明文が表示されることを防ぐ。
+    const preferredOrder = preferredVersionGroup?.order || versionGroupOrder(preferredVersionGroup);
+    if (preferredOrder > 0) {
+        const exact = entries.filter(entry => entry.order === preferredOrder).at(-1);
+        if (exact) return cleanFlavorText(exact.flavor_text);
+        const historical = entries.filter(entry => entry.order <= preferredOrder).at(-1);
+        if (historical) return cleanFlavorText(historical.flavor_text);
+    }
     return cleanFlavorText(entries.at(-1)?.flavor_text || '');
 }
 function synthesizeMoveDescription(move) {
@@ -1621,6 +1685,10 @@ function synthesizeMoveDescription(move) {
     return parts.join('') || (move.category === 'status' ? '能力や状態、場の状況を変化させる技。' : '相手にダメージを与える技。');
 }
 function moveDescription(pk, move) {
+    if (move.origName === 'hidden-power') {
+        const type = hiddenPowerType(pk);
+        return `個体値によってタイプが変わる特殊技。現在のタイプは${TYPE_NAMES[type] || 'タイプ名未取得'}で、威力は60。ノーマルタイプとフェアリータイプにはならない。`;
+    }
     if (move.origName === 'fling') {
         const power = displayedMovePower(pk, move);
         return `持っている道具を消費して攻撃する。現在の威力は${power}。道具によって追加効果が変わる。`;
@@ -1637,14 +1705,14 @@ function inferStatChangeTarget(moveName, moveTarget, shortEffect) {
     return 'target';
 }
 
-function normalizeMove(apiMove) {
+function normalizeMove(apiMove, sourceVersionGroup = null) {
     const ailment = apiMove.meta?.ailment?.name || 'none';
     const effectChance = apiMove.effect_chance ?? null;
     const ailmentChance = apiMove.meta?.ailment_chance > 0 ? apiMove.meta.ailment_chance : (ailment !== 'none' ? (effectChance ?? 100) : 0);
     const statChance = apiMove.meta?.stat_chance > 0 ? apiMove.meta.stat_chance : (apiMove.stat_changes?.length ? (effectChance ?? 100) : 0);
     const target = apiMove.target?.name || 'selected-pokemon';
     const shortEffect = apiMove.effect_entries?.find(entry => entry.language.name === 'en')?.short_effect || '';
-    const description = latestJapaneseMoveText(apiMove);
+    const description = latestJapaneseMoveText(apiMove, sourceVersionGroup);
     const requiresRecharge = RECHARGE_MOVES.has(apiMove.name) || /(?:must|has to) recharge|cannot move (?:on )?the next turn|can't move (?:on )?the next turn/i.test(shortEffect);
     return {
         name: getJaName(apiMove.names, '技名未取得'), origName: apiMove.name, type: apiMove.type?.name || 'normal',
@@ -1657,7 +1725,8 @@ function normalizeMove(apiMove) {
         minTurns: apiMove.meta?.min_turns || 0, maxTurns: apiMove.meta?.max_turns || apiMove.meta?.min_turns || 0,
         requiresRecharge,
         flags: (apiMove.flags || []).map(entry => entry.name),
-        target, pp: apiMove.pp ?? 10, maxPp: apiMove.pp ?? 10, shortEffect, description
+        target, pp: apiMove.pp ?? 10, maxPp: apiMove.pp ?? 10, shortEffect, description,
+        sourceVersionGroup: sourceVersionGroup?.name || null
     };
 }
 
@@ -1758,7 +1827,13 @@ function maybeAddDependentPackage(selected, candidates, context, enablerNames, d
 }
 
 async function selectOperationalMoves(moveRefs, context = {}) {
-    const allRefs = moveRefs.map(entry => entry.move || entry).filter(ref => ref?.name && ref?.url);
+    const allRefs = moveRefs
+        .map(entry => {
+            const ref = entry.move || entry;
+            if (!ref?.name || !ref?.url) return null;
+            return { ...ref, sourceVersionGroup: latestMoveLearnVersionGroup(entry) };
+        })
+        .filter(Boolean);
     const refMap = new Map(allRefs.map(ref => [ref.name, ref]));
     const ordinaryRefs = shuffle(allRefs.filter(ref => !DEPENDENT_MOVE_NAMES.has(ref.name))).slice(0, 24);
     const synergyRefs = [];
@@ -1781,10 +1856,14 @@ async function selectOperationalMoves(moveRefs, context = {}) {
     const candidates = [];
     for (let offset = 0; offset < uniqueRefs.length; offset += 8) {
         const batch = uniqueRefs.slice(offset, offset + 8);
-        const details = await mapLimit(batch, 8, ref => fetchAPI(ref.url, State.cache.moves, 1, 10000));
-        for (const data of details) {
+        const details = await mapLimit(batch, 8, async ref => ({
+            data: await fetchAPI(ref.url, State.cache.moves, 1, 10000),
+            ref
+        }));
+        for (const detail of details) {
+            const data = detail?.data;
             if (!data) continue;
-            const move = normalizeMove(data);
+            const move = normalizeMove(data, detail.ref?.sourceVersionGroup);
             if (!isMoveOperational(move)) {
                 State.audit.sampledRejectedMoves.add(move.origName);
                 continue;
@@ -1800,10 +1879,14 @@ async function selectOperationalMoves(moveRefs, context = {}) {
         const remainingRefs = shuffle(allRefs.filter(ref => !seenRefs.has(ref.name) && !DEPENDENT_MOVE_NAMES.has(ref.name))).slice(0, 24);
         for (let offset = 0; offset < remainingRefs.length; offset += 8) {
             const batch = remainingRefs.slice(offset, offset + 8);
-            const details = await mapLimit(batch, 8, ref => fetchAPI(ref.url, State.cache.moves, 1, 10000));
-            for (const data of details) {
+            const details = await mapLimit(batch, 8, async ref => ({
+                data: await fetchAPI(ref.url, State.cache.moves, 1, 10000),
+                ref
+            }));
+            for (const detail of details) {
+                const data = detail?.data;
                 if (!data) continue;
-                const move = normalizeMove(data);
+                const move = normalizeMove(data, detail.ref?.sourceVersionGroup);
                 if (!isMoveOperational(move)) continue;
                 if (!candidates.some(current => current.origName === move.origName)) candidates.push(move);
             }
@@ -1866,7 +1949,10 @@ function chooseItem(pokemon) {
     // メガストーン抽選や通常の重み付き抽選より先に確定させる。
     const forcedItem = forcedSpeciesItem(pokemon);
     if (forcedItem) return forcedItem;
-    const megaOptions = pokemon.megaOptions || [];
+    const primalOrb = PRIMAL_ORBS[pokemon.speciesKey];
+    if (primalOrb && Math.random() < PRIMAL_ORB_RATE) return primalOrb;
+
+    const megaOptions = (pokemon.megaOptions || []).filter(option => option.stone);
     if (megaOptions.length && Math.random() < MEGA_STONE_RATE) {
         return megaOptions[Math.floor(Math.random() * megaOptions.length)].stone;
     }
@@ -1920,8 +2006,6 @@ function chooseItem(pokemon) {
     if (speciesIs(pokemon, 'dialga')) { add('adamant-orb', 6); add('adamant-crystal', 5); }
     if (speciesIs(pokemon, 'palkia')) { add('lustrous-orb', 6); add('lustrous-globe', 5); }
     if (speciesIs(pokemon, 'giratina')) { add('griseous-orb', 6); add('griseous-core', 5); }
-    if (speciesIs(pokemon, 'groudon')) add('red-orb', 8);
-    if (speciesIs(pokemon, 'kyogre')) add('blue-orb', 8);
     if (speciesIs(pokemon, 'ogerpon')) { add('wellspring-mask', 4); add('hearthflame-mask', 4); add('cornerstone-mask', 4); }
     if (speciesIs(pokemon, 'arceus')) Object.keys(TYPE_PLATE_ITEMS).forEach(item => add(item, 0.8));
     if (speciesIs(pokemon, 'silvally')) Object.keys(TYPE_MEMORY_ITEMS).forEach(item => add(item, 0.8));
@@ -1953,7 +2037,7 @@ function chooseItem(pokemon) {
     }
     if (moveNames.has('trick-room')) { add('room-service', 6); add('iron-ball', 2); add('full-incense', 2); add('macho-brace', 1.5); }
     if (moves.some(move => move.statChanges?.some(change => change.change > 0))) add('mirror-herb', 1.2);
-    const damagingTypes = [...new Set(damaging.map(move => move.type))];
+    const damagingTypes = [...new Set(damaging.map(move => effectiveMoveType(pokemon, move)))];
     damagingTypes.forEach(type => { const gem = Object.keys(TYPE_GEM_ITEMS).find(item => TYPE_GEM_ITEMS[item] === type); add(gem, 0.8); });
     if (!hasStatus && damaging.length >= 3 && pokemon.stats['special-defense'] >= 80) add('assault-vest', 7);
     if (physical >= 3 && special === 0) { add('choice-band', 5); add('muscle-band', 4); }
@@ -1997,14 +2081,29 @@ function applyHeldTypeIdentity(pokemon) {
     if (pokemon.speciesKey === 'silvally' && TYPE_MEMORY_ITEMS[pokemon.item]) pokemon.types = [TYPE_MEMORY_ITEMS[pokemon.item]];
     pokemon.battleBaseTypes = [...pokemon.types];
 }
-async function applyHeldFormItem(pokemon) {
+async function applyHeldFormItem(pokemon, options = {}) {
     const definition = HELD_FORM_ITEMS[pokemon.item];
-    if (!definition || definition.species !== pokemon.speciesKey) { applyHeldTypeIdentity(pokemon); return; }
+    const isPrimal = ['red-orb', 'blue-orb'].includes(pokemon.item);
+    if (!definition || definition.species !== pokemon.speciesKey || (isPrimal && !options.allowPrimal)) {
+        applyHeldTypeIdentity(pokemon);
+        return false;
+    }
+    if (pokemon.heldForm === definition.apiSlug) return false;
+    if (isPrimal && !pokemon.heldFormBaseSnapshot) {
+        pokemon.heldFormBaseSnapshot = {
+            name: pokemon.name, baseName: pokemon.baseName, apiName: pokemon.apiName,
+            types: [...pokemon.types], battleBaseTypes: [...(pokemon.battleBaseTypes || pokemon.types)],
+            ability: pokemon.ability, spriteF: pokemon.spriteF, spriteB: pokemon.spriteB,
+            baseStats: { ...pokemon.baseStats }, stats: { ...pokemon.stats }, weight: pokemon.weight
+        };
+    }
     const apiData = await fetchAPI(`${POKE_API}/pokemon/${definition.apiSlug}`, State.cache.pokemon, 0, 7000);
     const apiStats = {};
     apiData?.stats?.forEach(entry => { apiStats[entry.stat.name] = entry.base_stat; });
     const abilityEntry = apiData?.abilities?.find(entry => !entry.is_hidden)?.ability || apiData?.abilities?.[0]?.ability || null;
     await cacheAbilityLocalization(abilityEntry);
+    const oldHp = pokemon.stats.hp;
+    const oldMaxHp = Math.max(1, pokemon.stats.maxHp);
     pokemon.name = definition.name;
     pokemon.baseName = definition.name;
     pokemon.apiName = definition.apiSlug;
@@ -2015,15 +2114,44 @@ async function applyHeldFormItem(pokemon) {
     pokemon.spriteB = apiData?.sprites?.back_default || pokemon.spriteB;
     pokemon.weight = apiData?.weight || pokemon.weight;
     const recalculated = calculateStatsFromBase(pokemon.baseStats, pokemon);
-    recalculated.hp = recalculated.maxHp = Math.floor(((2 * pokemon.baseStats.hp + pokemon.ivs.hp + Math.floor(pokemon.evs.hp / 4)) * 50) / 100) + 60;
+    recalculated.hp = Math.max(1, Math.min(recalculated.maxHp, Math.round(recalculated.maxHp * oldHp / oldMaxHp)));
     pokemon.stats = recalculated;
     pokemon.heldForm = definition.apiSlug;
-    pokemon.origAbility = pokemon.ability;
+    if (!isPrimal) pokemon.origAbility = pokemon.ability;
     applyHeldTypeIdentity(pokemon);
+    return true;
+}
+function revertPrimalForm(pokemon) {
+    const snapshot = pokemon?.heldFormBaseSnapshot;
+    if (!snapshot) return false;
+    const currentHpRatio = pokemon.stats.maxHp > 0 ? Math.max(0, pokemon.stats.hp) / pokemon.stats.maxHp : 1;
+    pokemon.name = snapshot.name;
+    pokemon.baseName = snapshot.baseName;
+    pokemon.apiName = snapshot.apiName;
+    pokemon.types = [...snapshot.types];
+    pokemon.battleBaseTypes = [...snapshot.battleBaseTypes];
+    pokemon.ability = snapshot.ability;
+    pokemon.spriteF = snapshot.spriteF;
+    pokemon.spriteB = snapshot.spriteB;
+    pokemon.baseStats = { ...snapshot.baseStats };
+    pokemon.weight = snapshot.weight;
+    const recalculated = calculateStatsFromBase(pokemon.baseStats, pokemon);
+    recalculated.hp = Math.max(0, Math.min(recalculated.maxHp, Math.round(recalculated.maxHp * currentHpRatio)));
+    pokemon.stats = recalculated;
+    pokemon.heldForm = null;
+    pokemon.heldFormBaseSnapshot = null;
+    return true;
+}
+async function ensureBattleEntryForm(pokemon) {
+    const expectedOrb = PRIMAL_ORBS[pokemon?.speciesKey];
+    if (!pokemon || !expectedOrb || !physicallyHoldsItem(pokemon, expectedOrb)) return false;
+    const changed = await applyHeldFormItem(pokemon, { allowPrimal: true });
+    if (changed) logMsg(`🌋 ${escapeHTML(pokemon.name)} は ${escapeHTML(itemName(pokemon.item))} の力でゲンシカイキした！`);
+    return changed;
 }
 
 async function buildPokemon(apiData) {
-    if (!apiData || isMegaPokemonName(apiData.name)) return null;
+    if (!apiData || isMegaPokemonName(apiData.name) || isPrimalPokemonName(apiData.name)) return null;
     const baseStats = {};
     apiData.stats?.forEach(entry => { baseStats[entry.stat.name] = entry.base_stat; });
     if (!baseStats.hp || !apiData.moves?.length) return null;
@@ -2050,7 +2178,7 @@ async function buildPokemon(apiData) {
         id: apiData.id, apiName: apiData.name, speciesKey: species?.name || apiData.species?.name || apiData.name, name: baseName, baseName,
         gender: rollPokemonGender(species),
         regionalForm: regionalFormInfo(apiData.name)?.region || null, canEvolve: false, blockEviolite: false,
-        bst: Object.values(baseStats).reduce((sum, value) => sum + Number(value || 0), 0), heldForm: null,
+        bst: Object.values(baseStats).reduce((sum, value) => sum + Number(value || 0), 0), heldForm: null, heldFormBaseSnapshot: null,
         battleBaseTypes: apiData.types.map(entry => entry.type.name),
         spriteF: apiData.sprites?.front_default || apiData.sprites?.other?.home?.front_default || apiData.sprites?.other?.['official-artwork']?.front_default || '',
         spriteB: apiData.sprites?.back_default || '', types: apiData.types.map(entry => entry.type.name),
@@ -2083,8 +2211,9 @@ async function buildPokemon(apiData) {
     const forcedItem = forcedSpeciesItem(pokemon);
     if (forcedItem) pokemon.item = forcedItem;
     pokemon.origItem = pokemon.item;
-    await applyHeldFormItem(pokemon);
-    if (isMegaStone(pokemon.item)) await prepareMegaProfile(pokemon);
+    // ゲンシカイキは個体生成時ではなく、専用道具を持った状態で戦闘へ出た瞬間に適用する。
+    await applyHeldFormItem(pokemon, { allowPrimal: false });
+    if (isMegaStone(pokemon.item) || pokemon.megaOptions.some(option => option.requiresMove)) await prepareMegaProfile(pokemon);
     else pokemon.megaProfile = null;
     pokemon.origAbility = pokemon.ability;
     pokemon.battleBaseTypes = [...pokemon.types];
@@ -2142,6 +2271,7 @@ function createCardDOM(pokemon, onClick) {
 
 function resetPokemonForNewBattle(pk) {
     revertMegaEvolution(pk);
+    revertPrimalForm(pk);
     revertStanceChange(pk);
     if (pk.iceFaceProfile) applyIceFaceForm(pk, 'ice', null, false, true);
     pk.stats.hp = pk.stats.maxHp;
@@ -2235,6 +2365,7 @@ function getLegalMoves(pk) {
 }
 
 function displayedMovePower(pk, move) {
+    if (move.origName === 'hidden-power') return 60;
     if (move.origName !== 'fling') return move.power ?? '-';
     if (!pk?.item || isMegaStone(pk.item)) return '-';
     const cached = State.cache.items[`${POKE_API}/item/${pk.item}`];
@@ -2299,7 +2430,8 @@ function updateBattleUI() {
         const button = document.createElement('button');
         button.className = 'move-btn';
         const pp = Number.isFinite(move.pp) ? `${move.pp}/${move.maxPp}` : '∞';
-        button.innerHTML = `<div>${escapeHTML(move.name)}</div><div class="move-meta">${escapeHTML(TYPE_NAMES[move.type] || 'タイプ名未取得')}｜${escapeHTML(MOVE_CATEGORY_NAMES[move.category] || '分類不明')}｜威力:${displayedMovePower(player, move)}／命中:${move.accuracy ?? '-'}／残り:${pp}</div><div class="move-description">${escapeHTML(moveDescription(player, move))}</div>`;
+        const shownType = effectiveMoveType(player, move);
+        button.innerHTML = `<div>${escapeHTML(move.name)}</div><div class="move-meta">${escapeHTML(TYPE_NAMES[shownType] || 'タイプ名未取得')}｜${escapeHTML(MOVE_CATEGORY_NAMES[move.category] || '分類不明')}｜威力:${displayedMovePower(player, move)}／命中:${move.accuracy ?? '-'}／残り:${pp}</div><div class="move-description">${escapeHTML(moveDescription(player, move))}</div>`;
         button.disabled = !legalNames.has(move.origName) || isAnimating;
         button.onclick = async () => {
             if (isAnimating) return;
@@ -2332,7 +2464,7 @@ function renderMegaControls(player) {
     const area = document.getElementById('mega-controls');
     if (!area) return;
     area.innerHTML = '';
-    if (!player?.megaProfile || player.isMega || State.megaUsed.player || player.item !== player.megaProfile.definition.stone || player.volatile.mustRecharge) return;
+    if (!player?.megaProfile || player.isMega || State.megaUsed.player || !megaRequirementMet(player) || player.volatile.mustRecharge) return;
     const button = document.createElement('button');
     button.className = `mega-btn${player.megaPending ? ' pending' : ''}`;
     button.textContent = player.megaPending ? '✨ メガシンカ待機中（もう一度で解除）' : `✨ ${player.megaProfile.name}へメガシンカ`;
@@ -2429,13 +2561,17 @@ async function startBattlePhase() {
     const nextButton = document.getElementById('btn-next-phase');
     nextButton.classList.add('hidden');
     nextButton.textContent = '次へ進む';
+    const openingPlayer = State.playerTeam[State.activePlayerIdx];
+    const openingEnemy = State.enemyTeam[State.activeEnemyIdx];
     logMsg('⚔️ <b>バトル開始！</b>', true);
-    logMsg(`相手は <b>${escapeHTML(State.enemyTeam[0].name)}</b> を繰り出した！`);
-    logMsg(`ゆけっ！ <b>${escapeHTML(State.playerTeam[0].name)}</b>！`);
-    announceEntryItem(State.playerTeam[0]);
-    announceEntryItem(State.enemyTeam[0]);
-    activateEntryAbility(State.playerTeam[0], true);
-    activateEntryAbility(State.enemyTeam[0], false);
+    logMsg(`相手は <b>${escapeHTML(openingEnemy.name)}</b> を繰り出した！`);
+    logMsg(`ゆけっ！ <b>${escapeHTML(openingPlayer.name)}</b>！`);
+    await ensureBattleEntryForm(openingPlayer);
+    await ensureBattleEntryForm(openingEnemy);
+    announceEntryItem(openingPlayer);
+    announceEntryItem(openingEnemy);
+    activateEntryAbility(openingPlayer, true);
+    activateEntryAbility(openingEnemy, false);
     await processPendingHeldItemSwitches();
     updateBattleUI();
 }
@@ -3261,6 +3397,7 @@ async function switchPlayerTo(targetIndex) {
     resetOnSwitch(incoming, false);
     logMsg(`🔄 ${escapeHTML(outgoing.name)} を戻した！`);
     logMsg(`ゆけっ！ <b>${escapeHTML(incoming.name)}</b>！`);
+    await ensureBattleEntryForm(incoming);
     announceEntryItem(incoming);
     activateEntryAbility(incoming, true);
     updateBattleUI();
@@ -3282,6 +3419,7 @@ async function switchEnemyTo(targetIndex, reason = '') {
     State.ai.enemyVoluntarySwitches++;
     logMsg(`🔄 相手は ${escapeHTML(outgoing.name)} を戻した！`);
     logMsg(`相手は <b>${escapeHTML(incoming.name)}</b> を繰り出した！`);
+    await ensureBattleEntryForm(incoming);
     announceEntryItem(incoming);
     activateEntryAbility(incoming, false);
     updateBattleUI();
@@ -3468,6 +3606,7 @@ async function switchByHeldItem(target, isPlayerTarget, label) {
     if (isPlayerTarget) State.activePlayerIdx = selected.index; else State.activeEnemyIdx = selected.index;
     resetOnSwitch(selected.pk, false);
     logMsg(`🔄 ${escapeHTML(target.name)} は ${escapeHTML(label)} で戻り、${escapeHTML(selected.pk.name)} が繰り出された！`);
+    await ensureBattleEntryForm(selected.pk);
     announceEntryItem(selected.pk);
     activateEntryAbility(selected.pk, isPlayerTarget);
     updateBattleUI();
@@ -3809,7 +3948,23 @@ function determineHitCount(atk, move) {
     return min + Math.floor(Math.random() * (max - min + 1));
 }
 
+const HIDDEN_POWER_TYPES = Object.freeze([
+    'fighting', 'flying', 'poison', 'ground', 'rock', 'bug', 'ghost', 'steel',
+    'fire', 'water', 'grass', 'electric', 'psychic', 'ice', 'dragon', 'dark'
+]);
+function hiddenPowerType(pokemon) {
+    const ivs = pokemon?.ivs || {};
+    // 第6世代以降のめざめるパワー。HP・攻撃・防御・素早さ・特攻・特防のIV奇偶で決定する。
+    const parity = [
+        ivs.hp, ivs.attack, ivs.defense, ivs.speed, ivs['special-attack'], ivs['special-defense']
+    ].map(value => Number(value || 0) & 1);
+    const value = parity.reduce((sum, bit, index) => sum + bit * (2 ** index), 0);
+    const typeIndex = Math.floor(value * 15 / 63);
+    return HIDDEN_POWER_TYPES[typeIndex] || 'fighting';
+}
+
 function effectiveMoveType(atk, move) {
+    if (move.origName === 'hidden-power') return hiddenPowerType(atk);
     if (move.origName === 'judgment' && itemEffectActive(atk) && TYPE_PLATE_ITEMS[atk.item]) return TYPE_PLATE_ITEMS[atk.item];
     if (move.origName === 'multi-attack' && itemEffectActive(atk) && TYPE_MEMORY_ITEMS[atk.item]) return TYPE_MEMORY_ITEMS[atk.item];
     if (move.origName === 'techno-blast' && itemEffectActive(atk) && TYPE_DRIVE_ITEMS[atk.item]) return TYPE_DRIVE_ITEMS[atk.item];
@@ -3828,6 +3983,7 @@ function effectiveMoveType(atk, move) {
     return move.type;
 }
 function variablePower(atk, def, move, isPlayer) {
+    if (move.origName === 'hidden-power') return 60;
     if (move.origName === 'fling') return Math.max(0, Number(move.runtimePower) || 0);
     if (move.power > 0) return move.power;
     switch (move.origName) {
@@ -4462,6 +4618,7 @@ async function forceSwitchTarget(target, isPlayerTarget, source = null) {
     if (isPlayerTarget) State.activePlayerIdx = selected.index; else State.activeEnemyIdx = selected.index;
     resetOnSwitch(selected.pk, false);
     logMsg(`🌪️ ${escapeHTML(target.name)} は強制的に戻され、${escapeHTML(selected.pk.name)} が繰り出された！`);
+    await ensureBattleEntryForm(selected.pk);
     announceEntryItem(selected.pk);
     activateEntryAbility(selected.pk, isPlayerTarget);
     updateBattleUI();
@@ -4686,6 +4843,7 @@ async function checkFaint(preferredPlayerIndex = null, preferredEnemyIndex = nul
         enemy = State.enemyTeam[State.activeEnemyIdx];
         resetOnSwitch(enemy, false);
         logMsg(`相手は <b>${escapeHTML(enemy.name)}</b> を繰り出した！`);
+        await ensureBattleEntryForm(enemy);
         announceEntryItem(enemy);
         activateEntryAbility(enemy, false);
         updateBattleUI();
@@ -4704,6 +4862,7 @@ async function checkFaint(preferredPlayerIndex = null, preferredEnemyIndex = nul
         player = State.playerTeam[State.activePlayerIdx];
         resetOnSwitch(player, false);
         logMsg(`ゆけっ！ <b>${escapeHTML(player.name)}</b>！`);
+        await ensureBattleEntryForm(player);
         announceEntryItem(player);
         activateEntryAbility(player, true);
         updateBattleUI();

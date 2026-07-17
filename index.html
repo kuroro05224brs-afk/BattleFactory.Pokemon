@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>ウェブ版 バトルファクトリー 最終レビュー版</title>
+    <title>ウェブ版 バトルファクトリー バトンタッチ対応版</title>
     <style>
         :root {
             --primary: #2c3e50;
@@ -194,6 +194,22 @@
             100% { filter: brightness(1); transform: scale(1); }
         }
         .title-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; font-size: 14px; color: #555; }
+        .factory-symbols { display: inline-flex; align-items: center; gap: 6px; }
+        .factory-symbol { position: relative; display: inline-grid; place-items: center; width: 30px; height: 30px; clip-path: polygon(25% 0,75% 0,100% 25%,100% 75%,75% 100%,25% 100%,0 75%,0 25%); border: 0; font-family: 'Courier New','MS Gothic',monospace; font-size: 16px; font-weight: 900; line-height: 1; text-shadow: 1px 1px 0 rgba(255,255,255,.8), -1px -1px 0 rgba(0,0,0,.22); box-shadow: 0 2px 5px rgba(0,0,0,.28); }
+        .factory-symbol.silver { color: #394653; background: linear-gradient(135deg,#f8fbff 0%,#aebbc8 48%,#eef3f7 72%,#7e8c99 100%); }
+        .factory-symbol.gold { color: #714700; background: linear-gradient(135deg,#fff7b0 0%,#e7a900 45%,#fff17a 68%,#b87500 100%); }
+        .audit-options { margin-top: 14px; text-align: left; border: 1px solid var(--container-border); border-radius: 8px; background: #f7f9fb; overflow: hidden; }
+        .audit-options > summary { cursor: pointer; padding: 11px 12px; font-weight: bold; color: var(--primary); }
+        .audit-options .api-audit { margin: 0; border: 0; border-top: 1px solid var(--container-border); border-radius: 0; max-height: none; overflow: visible; }
+        .symbol-award-box { width: min(430px,100%); overflow: hidden; background: radial-gradient(circle at top,#ffffff 0%,#f5f7fa 56%,#dfe5eb 100%); border: 4px solid #4b5661; animation: symbolReveal .42s steps(5,end); }
+        .symbol-award-box.gold-award { background: radial-gradient(circle at top,#fffce6 0%,#fff3ad 52%,#e7b52e 100%); border-color: #9a6800; }
+        .symbol-award-kicker { font-family: 'Courier New','MS Gothic',monospace; font-weight: 900; letter-spacing: .12em; color: #59636d; }
+        .symbol-award-icon { width: 132px; height: 132px; margin: 14px auto; display: grid; place-items: center; clip-path: polygon(25% 0,75% 0,100% 25%,100% 75%,75% 100%,25% 100%,0 75%,0 25%); font-family: 'Courier New','MS Gothic',monospace; font-size: 64px; font-weight: 900; line-height: 1; text-shadow: 3px 3px 0 rgba(255,255,255,.8), -3px -3px 0 rgba(0,0,0,.18); box-shadow: 0 8px 20px rgba(0,0,0,.28); }
+        .symbol-award-icon.silver { color: #394653; background: linear-gradient(135deg,#ffffff 0%,#aebbc8 42%,#f7fafc 67%,#74828f 100%); }
+        .symbol-award-icon.gold { color: #714700; background: linear-gradient(135deg,#fff8ad 0%,#e9aa00 43%,#fff17a 68%,#a86d00 100%); }
+        .symbol-award-title { margin: 8px 0 4px; font-size: 25px; }
+        .symbol-award-message { margin: 0 0 16px; font-weight: bold; line-height: 1.65; }
+        @keyframes symbolReveal { 0% { transform: scale(.35) rotate(-8deg); opacity: 0; } 70% { transform: scale(1.08) rotate(2deg); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
         .theme-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: var(--theme-chip-bg); color: var(--primary); font-weight: 700; }
         .theme-badge::before { content: '◆'; color: var(--accent); font-size: 11px; }
         .theme-config { text-align: left; margin: 8px 0 4px; }
@@ -366,9 +382,9 @@
         <div class="title-meta">
             <span>連勝: <span id="streak" style="color:var(--accent); font-weight:bold;">0</span>／最高: <span id="max-streak" style="color:var(--accent-2); font-weight:bold;">0</span></span>
             <span id="current-theme-label" class="theme-badge">テーマ: エメラルド</span>
+            <span id="factory-symbols" class="factory-symbols hidden" aria-label="獲得したシンボル"></span>
         </div>
     </div>
-    <div id="api-audit" class="api-audit"><strong>データ監査</strong><span>ポケモンデータを確認しています...</span></div>
     <div id="loader" class="overlay-loader hidden"><div>ポケモンデータと同期中...</div></div>
     <div id="draft-screen" class="hidden">
         <h3>手持ちにするポケモンを3匹選んでください</h3>
@@ -447,10 +463,23 @@
             <div id="implemented-items-meta" class="implemented-items-meta"></div>
             <div id="implemented-items-list" class="implemented-items-list"></div>
         </details>
+        <details id="audit-options-details" class="audit-options">
+            <summary>データ監査を見る</summary>
+            <div id="api-audit" class="api-audit"><strong>データ監査</strong><span>ポケモンデータを確認しています...</span></div>
+        </details>
         <div class="modal-actions">
             <button id="btn-close-options" type="button">ゲームに戻る</button>
             <button id="btn-end-game" class="danger-btn" type="button">ゲームを終了する</button>
         </div>
+    </div>
+</div>
+<div id="symbol-award-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="symbol-award-title">
+    <div id="symbol-award-box" class="modal-box symbol-award-box">
+        <div class="symbol-award-kicker">BATTLE FACTORY</div>
+        <div id="symbol-award-icon" class="symbol-award-icon silver" aria-hidden="true">◆</div>
+        <h3 id="symbol-award-title" class="symbol-award-title">シンボルを獲得！</h3>
+        <p id="symbol-award-message" class="symbol-award-message"></p>
+        <button id="btn-close-symbol-award" type="button">受け取る</button>
     </div>
 </div>
 <script>
@@ -810,9 +839,14 @@ const RECHARGE_ACTION = Object.freeze({
     description: '前のターンに使った大技の反動で、このターンは行動も交代もできない。'
 });
 const INVULNERABLE_TWO_TURN_MOVES = new Set(['dig', 'dive', 'fly', 'bounce', 'phantom-force', 'shadow-force']);
+// 1ターン目は溜めるだけで、2ターン目に能力上昇などの効果を発動する技。
+// 姿を隠す技とは異なり、溜めている間も通常どおり攻撃を受ける。
+const CHARGE_EFFECT_TWO_TURN_MOVES = new Set(['geomancy']);
+const TWO_TURN_MOVES = new Set([...INVULNERABLE_TWO_TURN_MOVES, ...CHARGE_EFFECT_TWO_TURN_MOVES]);
 const TWO_TURN_CHARGE_MESSAGES = {
     dig: '地中にもぐった！', dive: '水中に身をひそめた！', fly: '空高く飛び上がった！', bounce: '空高く跳び上がった！',
-    'phantom-force': '姿を消した！', 'shadow-force': '姿を消した！'
+    'phantom-force': '姿を消した！', 'shadow-force': '姿を消した！',
+    geomancy: '大地のエネルギーを吸収している！'
 };
 const MOVE_CATEGORY_NAMES = { physical: '物理', special: '特殊', status: '変化' };
 const INTENTIONAL_NO_EFFECT_MOVES = new Set(['splash', 'celebrate', 'hold-hands', 'happy-hour']);
@@ -821,7 +855,7 @@ const SPECIAL_STATUS_MOVES = new Set([
     'reflect', 'light-screen', 'aurora-veil', 'stealth-rock', 'spikes', 'toxic-spikes', 'sticky-web', 'defog', 'court-change',
     'rain-dance', 'sunny-day', 'sandstorm', 'hail', 'snowscape', 'electric-terrain', 'grassy-terrain', 'misty-terrain', 'psychic-terrain',
     'trick-room', 'tailwind', 'leech-seed', 'substitute', 'belly-drum', 'haze', 'rest', 'heal-bell', 'aromatherapy', 'refresh',
-    'psych-up', 'topsy-turvy', 'perish-song', 'taunt', 'attract', 'sleep-talk', ...INTENTIONAL_NO_EFFECT_MOVES
+    'psych-up', 'topsy-turvy', 'perish-song', 'taunt', 'attract', 'sleep-talk', 'baton-pass', ...INTENTIONAL_NO_EFFECT_MOVES
 ]);
 const POST_DAMAGE_SPECIAL_MOVES = new Set(['rapid-spin', 'mortal-spin', 'clear-smog', 'brick-break', 'psychic-fangs', 'raging-bull', 'ice-spinner', 'steel-roller', 'knock-off', 'thief', 'covet', 'fell-stinger', 'salt-cure']);
 
@@ -870,6 +904,20 @@ function safeStorageSet(key, value) {
     try { localStorage.setItem(key, String(value)); } catch (_) { /* storage unavailable */ }
 }
 
+const FACTORY_SYMBOL_STORAGE_KEY = 'battle-factory-earned-symbols-v1';
+const FACTORY_SYMBOL_DEFS = Object.freeze({
+    silver: Object.freeze({ threshold: 50, name: '銀のシンボル', className: 'silver', mark: '◆' }),
+    gold: Object.freeze({ threshold: 500, name: '金のシンボル', className: 'gold', mark: '★' })
+});
+function loadFactorySymbols() {
+    try {
+        const parsed = JSON.parse(safeStorageGet(FACTORY_SYMBOL_STORAGE_KEY, '{}') || '{}');
+        return { silver: Boolean(parsed?.silver), gold: Boolean(parsed?.gold) };
+    } catch (_) {
+        return { silver: false, gold: false };
+    }
+}
+
 const THEME_STORAGE_KEY = 'battle-factory-theme';
 const THEMES = Object.freeze({
     red: { label: '赤', vars: { '--primary': '#9f1d20', '--primary-hover': '#7f1417', '--bg': '#fff4f4', '--body-bg': 'radial-gradient(circle at top, #ffe5e5 0%, #fff4f4 55%, #f6d0d0 100%)', '--accent': '#d63b3f', '--accent-2': '#f39c12', '--container-bg': 'rgba(255,252,252,0.96)', '--container-border': '#f1c1c1', '--battle-bg': 'linear-gradient(to bottom, #ffd3a5, #fd6585)', '--log-header-bg': '#8d2023', '--right-pane-border': '#d98080', '--status-board-bg': 'rgba(255,250,250,0.96)', '--field-bar-bg': 'rgba(120,18,24,0.68)', '--theme-chip-bg': 'rgba(159,29,32,.10)', '--logo-fill': 'linear-gradient(180deg, #ffe76a 0%, #ffcf33 55%, #f59f00 100%)', '--logo-stroke': '#224b9d', '--logo-glow': 'rgba(214,59,63,.32)', '--logo-sub': '#7f1417' } },
@@ -897,6 +945,9 @@ const STRUGGLE_MOVE = Object.freeze({
 const State = {
     streak: 0,
     maxStreak: Number(safeStorageGet('battle-factory-max-streak', '0') || 0),
+    earnedSymbols: loadFactorySymbols(),
+    symbolAwardQueue: [],
+    symbolAwardOpen: false,
     gameEnded: false,
     battleResolved: false,
     playerTeam: [], enemyTeam: [], draftPool: [], activePlayerIdx: 0, activeEnemyIdx: 0, turn: 1,
@@ -924,7 +975,8 @@ State.field = freshField();
 
 const UI = {
     draft: document.getElementById('draft-screen'), battle: document.getElementById('battle-screen'), swap: document.getElementById('swap-screen'), end: document.getElementById('end-screen'),
-    log: document.getElementById('log-window'), loader: document.getElementById('loader'), audit: document.getElementById('api-audit'), options: document.getElementById('options-modal')
+    log: document.getElementById('log-window'), loader: document.getElementById('loader'), audit: document.getElementById('api-audit'), options: document.getElementById('options-modal'),
+    symbols: document.getElementById('factory-symbols'), symbolAward: document.getElementById('symbol-award-modal')
 };
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -1141,6 +1193,53 @@ function openOptions() {
     UI.options?.classList.remove('hidden');
 }
 function closeOptions() { UI.options?.classList.add('hidden'); }
+function renderFactorySymbols() {
+    if (!UI.symbols) return;
+    const earned = Object.entries(FACTORY_SYMBOL_DEFS).filter(([key]) => State.earnedSymbols[key]);
+    UI.symbols.classList.toggle('hidden', !earned.length);
+    UI.symbols.innerHTML = earned.map(([key, def]) =>
+        `<span class="factory-symbol ${def.className}" title="${def.name}（${def.threshold}連勝）" aria-label="${def.name}">${def.mark}</span>`
+    ).join('');
+}
+function showNextFactorySymbolAward() {
+    if (State.symbolAwardOpen || !State.symbolAwardQueue.length || !UI.symbolAward) return;
+    const key = State.symbolAwardQueue.shift();
+    const def = FACTORY_SYMBOL_DEFS[key];
+    if (!def) return showNextFactorySymbolAward();
+    State.symbolAwardOpen = true;
+    const box = document.getElementById('symbol-award-box');
+    const icon = document.getElementById('symbol-award-icon');
+    box?.classList.toggle('gold-award', key === 'gold');
+    if (icon) {
+        icon.className = `symbol-award-icon ${def.className}`;
+        icon.textContent = def.mark;
+    }
+    const title = document.getElementById('symbol-award-title');
+    const message = document.getElementById('symbol-award-message');
+    if (title) title.textContent = `${def.name}を獲得！`;
+    if (message) message.innerHTML = `${def.threshold}連勝を達成した！<br><b>${def.name}</b>を手に入れた！`;
+    UI.symbolAward.classList.remove('hidden');
+}
+function closeFactorySymbolAward() {
+    UI.symbolAward?.classList.add('hidden');
+    State.symbolAwardOpen = false;
+    if (State.symbolAwardQueue.length) setTimeout(showNextFactorySymbolAward, 180);
+}
+function awardFactorySymbolsForRecord(record) {
+    const newlyEarned = [];
+    for (const [key, def] of Object.entries(FACTORY_SYMBOL_DEFS)) {
+        if (record >= def.threshold && !State.earnedSymbols[key]) {
+            State.earnedSymbols[key] = true;
+            newlyEarned.push(key);
+        }
+    }
+    if (!newlyEarned.length) return [];
+    safeStorageSet(FACTORY_SYMBOL_STORAGE_KEY, JSON.stringify(State.earnedSymbols));
+    renderFactorySymbols();
+    State.symbolAwardQueue.push(...newlyEarned);
+    showNextFactorySymbolAward();
+    return newlyEarned;
+}
 function endCurrentGame() {
     if (!confirm('現在のゲームを終了しますか？\n連勝記録は0に戻ります。')) return;
     closeOptions();
@@ -1670,6 +1769,8 @@ function latestJapaneseMoveText(apiMove, preferredVersionGroup = null) {
 function synthesizeMoveDescription(move) {
     if (move.requiresRecharge || RECHARGE_MOVES.has(move.origName)) return '攻撃が命中すると、次のターンは反動で行動も交代もできない。';
     if (INVULNERABLE_TWO_TURN_MOVES.has(move.origName)) return '1ターン目に姿を隠して攻撃を受けず、次のターンに自動で攻撃する。';
+    if (move.origName === 'geomancy') return '1ターン目に力をため、次のターンに特攻・特防・素早さを2段階ずつ上げる。パワフルハーブを持っている場合は、その場で能力が上がる。';
+    if (move.origName === 'baton-pass') return '控えと交代し、能力ランクやみがわりなどの一部の効果を引き継ぐ。おいかぜは味方の場に残るため交代後も継続する。';
     if (PROTECT_MOVES.has(move.origName)) return 'そのターンの攻撃を防ぐ。連続して使うほど失敗しやすくなる。';
     if (move.origName === 'fling') return '持っている道具を投げつける。威力と追加効果は道具によって変わり、道具はなくなる。';
     const parts = [];
@@ -1685,6 +1786,12 @@ function synthesizeMoveDescription(move) {
     return parts.join('') || (move.category === 'status' ? '能力や状態、場の状況を変化させる技。' : '相手にダメージを与える技。');
 }
 function moveDescription(pk, move) {
+    if (move.origName === 'baton-pass') {
+        return '控えと交代し、能力ランク・みがわりの残り体力・混乱・やどりぎ・拘束・ほろびのカウント・急所率上昇を引き継ぐ。おいかぜは場の効果としてそのまま残る。';
+    }
+    if (move.origName === 'geomancy') {
+        return '1ターン目に大地のエネルギーを吸収し、次のターンに特攻・特防・素早さを2段階ずつ上げる。パワフルハーブを持っている場合は溜めを省略する。';
+    }
     if (move.origName === 'hidden-power') {
         const type = hiddenPowerType(pk);
         return `個体値によってタイプが変わる特殊技。現在のタイプは${TYPE_NAMES[type] || 'タイプ名未取得'}で、威力は60。ノーマルタイプとフェアリータイプにはならない。`;
@@ -1749,6 +1856,15 @@ const DEPENDENT_MOVE_NAMES = new Set(Object.keys(MOVE_DEPENDENCY_RULES));
 const WEATHER_SETUP_MOVES = new Set(['rain-dance', 'sunny-day', 'sandstorm', 'hail', 'snowscape']);
 const TERRAIN_SETUP_MOVES = new Set(['electric-terrain', 'grassy-terrain', 'misty-terrain', 'psychic-terrain']);
 const BINDING_MOVES = new Set(['bind', 'clamp', 'fire-spin', 'infestation', 'magma-storm', 'sand-tomb', 'snap-trap', 'thunder-cage', 'whirlpool', 'wrap']);
+const BATON_PASS_PRIMARY_SETUP_MOVES = new Set([
+    'swords-dance', 'nasty-plot', 'bulk-up', 'calm-mind', 'dragon-dance', 'quiver-dance', 'agility', 'rock-polish',
+    'iron-defense', 'acid-armor', 'barrier', 'amnesia', 'cosmic-power', 'work-up', 'coil', 'hone-claws', 'growth',
+    'shift-gear', 'shell-smash', 'stockpile', 'cotton-guard', 'defense-curl', 'charge', 'double-team', 'minimize'
+]);
+const BATON_PASS_SUPPORT_MOVES = new Set([
+    ...BATON_PASS_PRIMARY_SETUP_MOVES, 'substitute', 'focus-energy', 'tailwind'
+]);
+const BATON_PASS_PACKAGE_RATE = 0.42;
 // 攻撃技がなくても、継続ダメージや滅びのカウントで勝てる構成は有効とみなす。
 // 逆に、まもる・回復・能力変化だけで相手のHPを一切減らせない構成は生成しない。
 const PASSIVE_WIN_MOVE_NAMES = new Set([
@@ -1799,6 +1915,8 @@ function moveSelectionWeight(move, context, selected) {
     // 役割が完全に重複する技だけを弱く抑制する。
     let weight = 1 + Math.random() * 1.4;
     if (hasRedundantRole(move, selected)) weight *= 0.08;
+    if (selectedHasMove(selected, 'baton-pass') && BATON_PASS_SUPPORT_MOVES.has(move.origName)) weight *= 4.2;
+    if (move.origName === 'baton-pass' && selected.some(current => BATON_PASS_SUPPORT_MOVES.has(current.origName))) weight *= 3.4;
     return Math.max(0.05, weight);
 }
 function chooseMoveFromPool(pool, context, selected) {
@@ -1826,6 +1944,45 @@ function maybeAddDependentPackage(selected, candidates, context, enablerNames, d
     return replaceForDependent(selected, dependent, context, new Set(enablerNames));
 }
 
+function buildBatonPassPackage(candidates, context = {}) {
+    const batonPass = candidates.find(move => move.origName === 'baton-pass');
+    const primarySetups = candidates.filter(move => BATON_PASS_PRIMARY_SETUP_MOVES.has(move.origName));
+    if (!batonPass || !primarySetups.length || Math.random() >= BATON_PASS_PACKAGE_RATE) return null;
+
+    const result = [batonPass];
+    const primary = chooseMoveFromPool(primarySetups, context, result) || primarySetups[0];
+    result.push(primary);
+
+    // おいかぜ＋バトンタッチ＋積み技の形を明確に生成できるよう、覚える場合は高確率で採用する。
+    const tailwind = candidates.find(move => move.origName === 'tailwind');
+    const supportPool = candidates.filter(move => BATON_PASS_SUPPORT_MOVES.has(move.origName) && !result.some(current => current.origName === move.origName));
+    if (tailwind && Math.random() < 0.68) result.push(tailwind);
+    else {
+        const support = chooseMoveFromPool(supportPool, context, result);
+        if (support) result.push(support);
+    }
+
+    // 最後の1枠は原則として攻撃技。攻撃技がなければ継続ダメージ等の勝ち筋を採用する。
+    const damagingPool = candidates.filter(move => isDamagingMove(move) && !result.some(current => current.origName === move.origName));
+    const winPool = candidates.filter(move => isWinConditionMove(move, context) && !result.some(current => current.origName === move.origName));
+    const finisher = chooseMoveFromPool(damagingPool, context, result) || chooseMoveFromPool(winPool, context, result);
+    if (finisher) result.push(finisher);
+
+    while (result.length < 4) {
+        const pool = candidates.filter(move => !result.some(current => current.origName === move.origName));
+        const next = chooseMoveFromPool(pool, context, result);
+        if (!next) break;
+        result.push(next);
+    }
+    return result.slice(0, 4);
+}
+
+function ensureBatonPassSupport(selected, candidates, context = {}) {
+    if (!selectedHasMove(selected, 'baton-pass') || selected.some(move => BATON_PASS_SUPPORT_MOVES.has(move.origName))) return selected;
+    const support = chooseMoveFromPool(candidates.filter(move => BATON_PASS_SUPPORT_MOVES.has(move.origName)), context, selected);
+    return support ? replaceForDependent(selected, support, context, new Set(['baton-pass'])) : selected;
+}
+
 async function selectOperationalMoves(moveRefs, context = {}) {
     const allRefs = moveRefs
         .map(entry => {
@@ -1844,13 +2001,18 @@ async function selectOperationalMoves(moveRefs, context = {}) {
         if (!availableEnablers.length) continue;
         synergyRefs.push(dependentRef, ...shuffle(availableEnablers).slice(0, 2));
     }
+    const batonPassRef = refMap.get('baton-pass');
+    if (batonPassRef) {
+        const passSupportRefs = [...BATON_PASS_SUPPORT_MOVES].map(name => refMap.get(name)).filter(Boolean);
+        if (passSupportRefs.length) synergyRefs.push(batonPassRef, ...shuffle(passSupportRefs).slice(0, 8));
+    }
     const uniqueRefs = [];
     const seenRefs = new Set();
     for (const ref of [...ordinaryRefs, ...synergyRefs]) {
         if (seenRefs.has(ref.name)) continue;
         seenRefs.add(ref.name);
         uniqueRefs.push(ref);
-        if (uniqueRefs.length >= 32) break;
+        if (uniqueRefs.length >= 40) break;
     }
 
     const candidates = [];
@@ -1895,8 +2057,9 @@ async function selectOperationalMoves(moveRefs, context = {}) {
     }
 
     const ordinary = candidates.filter(move => !DEPENDENT_MOVE_NAMES.has(move.origName));
-    const selected = [];
-    // 攻撃技の本数を固定せず、変化技4つの構成も含めて全候補から抽選する。
+    const batonPackage = buildBatonPassPackage(candidates, context);
+    const selected = batonPackage ? [...batonPackage] : [];
+    // バトンタッチ戦術を引いた場合は専用パッケージを優先。それ以外は従来どおり自由抽選。
     while (selected.length < 4) {
         const pool = ordinary.filter(move => !selected.some(current => current.origName === move.origName));
         if (!pool.length) break;
@@ -1906,7 +2069,8 @@ async function selectOperationalMoves(moveRefs, context = {}) {
     }
 
     let result = selected;
-    result = maybeAddDependentPackage(result, candidates, context, ['rest'], ['sleep-talk', 'snore'], 0.34);
+    if (!batonPackage) result = maybeAddDependentPackage(result, candidates, context, ['rest'], ['sleep-talk', 'snore'], 0.34);
+    result = ensureBatonPassSupport(result, candidates, context);
 
     result = result.filter((move, index, array) => array.findIndex(other => other.origName === move.origName) === index);
     result = result.filter(move => dependencySatisfied(move.origName, result));
@@ -1976,7 +2140,7 @@ function chooseItem(pokemon) {
     const hasContactMove = moves.some(move => moveHasFlag(move, 'contact'));
     const hasLowAccuracyMove = moves.some(move => move.accuracy && move.accuracy <= 80);
     const hasBindingMove = moves.some(move => BINDING_MOVES.has(move.origName));
-    const hasTwoTurnMove = moves.some(move => INVULNERABLE_TWO_TURN_MOVES.has(move.origName));
+    const hasTwoTurnMove = moves.some(move => TWO_TURN_MOVES.has(move.origName));
     const hasRecoilMove = moves.some(move => moveHasFlag(move, 'recoil'));
 
     // 常に選ばれ得る汎用候補。重みを低めにし、技・特性との相性候補を優先する。
@@ -2432,9 +2596,14 @@ function updateBattleUI() {
         const pp = Number.isFinite(move.pp) ? `${move.pp}/${move.maxPp}` : '∞';
         const shownType = effectiveMoveType(player, move);
         button.innerHTML = `<div>${escapeHTML(move.name)}</div><div class="move-meta">${escapeHTML(TYPE_NAMES[shownType] || 'タイプ名未取得')}｜${escapeHTML(MOVE_CATEGORY_NAMES[move.category] || '分類不明')}｜威力:${displayedMovePower(player, move)}／命中:${move.accuracy ?? '-'}／残り:${pp}</div><div class="move-description">${escapeHTML(moveDescription(player, move))}</div>`;
-        button.disabled = !legalNames.has(move.origName) || isAnimating;
+        const batonTargets = move.origName === 'baton-pass' ? availableBatonPassTargets(true) : [];
+        button.disabled = !legalNames.has(move.origName) || isAnimating || (move.origName === 'baton-pass' && !batonTargets.length);
         button.onclick = async () => {
             if (isAnimating) return;
+            if (move.origName === 'baton-pass') {
+                renderBatonPassPanel(move, batonTargets);
+                return;
+            }
             isAnimating = true;
             disableMoveButtons();
             await executeTurn(move);
@@ -2540,6 +2709,37 @@ function renderSwitchPanel(candidates = null) {
     panel.appendChild(cancel);
     panel.classList.remove('hidden');
 }
+function renderBatonPassPanel(move, candidates = null) {
+    const panel = document.getElementById('switch-panel');
+    if (!panel) return;
+    const entries = candidates || availableBatonPassTargets(true);
+    panel.innerHTML = '<div class="switch-panel-title">バトンタッチする相手を選んでください</div>';
+    for (const { pk: pokemon, index } of entries) {
+        const button = document.createElement('button');
+        button.className = 'switch-option';
+        button.type = 'button';
+        const typeText = pokemon.types.map(type => TYPE_NAMES[type] || 'タイプ名未取得').join('・');
+        button.innerHTML = `<span>${escapeHTML(pokemon.name)}<br><small>${escapeHTML(typeText)}／${escapeHTML(STATUS_NAMES[pokemon.status] || '正常')}</small></span><span>体力 ${Math.max(0, pokemon.stats.hp)}/${pokemon.stats.maxHp}</span>`;
+        button.onclick = async () => {
+            if (isAnimating) return;
+            isAnimating = true;
+            disableMoveButtons();
+            panel.classList.add('hidden');
+            await executeTurn({ ...move, sourceMove: move, batonPassTargetIndex: index });
+            isAnimating = false;
+            updateBattleUI();
+        };
+        panel.appendChild(button);
+    }
+    const cancel = document.createElement('button');
+    cancel.className = 'switch-cancel';
+    cancel.type = 'button';
+    cancel.textContent = 'バトンタッチをやめる';
+    cancel.onclick = () => panel.classList.add('hidden');
+    panel.appendChild(cancel);
+    panel.classList.remove('hidden');
+}
+
 function disableMoveButtons() {
     document.querySelectorAll('#battle-moves button, #mega-controls button, #switch-controls button, #switch-panel button').forEach(button => { button.disabled = true; });
 }
@@ -3040,6 +3240,74 @@ function matchupScore(candidate, player, isCurrent = false) {
     return score;
 }
 
+function availableBatonPassTargets(isPlayer) {
+    const team = isPlayer ? State.playerTeam : State.enemyTeam;
+    const activeIndex = isPlayer ? State.activePlayerIdx : State.activeEnemyIdx;
+    return team.map((pk, index) => ({ pk, index }))
+        .filter(entry => entry.index !== activeIndex && entry.pk.stats.hp > 0)
+        .filter(entry => estimateHazardDamage(entry.pk, isPlayer) < entry.pk.stats.hp);
+}
+
+function batonPassStateValue(pk) {
+    if (!pk) return 0;
+    const positive = Object.values(pk.modifiers || {}).filter(value => value > 0).reduce((sum, value) => sum + value, 0);
+    const negative = Object.values(pk.modifiers || {}).filter(value => value < 0).reduce((sum, value) => sum + Math.abs(value), 0);
+    return positive * 2.2 - negative * 1.2 + (pk.volatile.substitute > 0 ? 4 : 0) + (pk.volatile.focusEnergy > 0 ? 2.5 : 0);
+}
+
+function batonPassRecipientScore(candidate, outgoing, foe, isPlayer) {
+    let score = matchupScore(candidate, foe, false);
+    const physicalMoves = candidate.moves.filter(move => isDamagingMove(move) && move.category === 'physical').length;
+    const specialMoves = candidate.moves.filter(move => isDamagingMove(move) && move.category === 'special').length;
+    score += Math.max(0, outgoing.modifiers.attack) * (physicalMoves ? 2.2 : 0.6);
+    score += Math.max(0, outgoing.modifiers['special-attack']) * (specialMoves ? 2.2 : 0.6);
+    score += Math.max(0, outgoing.modifiers.speed) * 1.7;
+    score += Math.max(0, outgoing.modifiers.defense) * 1.15;
+    score += Math.max(0, outgoing.modifiers['special-defense']) * 1.15;
+    score += outgoing.volatile.substitute > 0 ? 4.5 : 0;
+    score += outgoing.volatile.focusEnergy > 0 ? 2 : 0;
+    score -= estimateHazardDamage(candidate, isPlayer) / Math.max(1, candidate.stats.maxHp) * 14;
+    return score;
+}
+
+function chooseBatonPassTarget(outgoing, isPlayer, preferredIndex = null) {
+    const candidates = availableBatonPassTargets(isPlayer);
+    if (!candidates.length) return null;
+    if (Number.isInteger(preferredIndex)) {
+        const preferred = candidates.find(entry => entry.index === preferredIndex);
+        if (preferred) return preferred;
+    }
+    const foe = isPlayer ? State.enemyTeam[State.activeEnemyIdx] : State.playerTeam[State.activePlayerIdx];
+    return candidates
+        .map(entry => ({ ...entry, score: batonPassRecipientScore(entry.pk, outgoing, foe, isPlayer) }))
+        .sort((a, b) => b.score - a.score)[0];
+}
+
+function captureBatonPassState(pk) {
+    return {
+        modifiers: { ...pk.modifiers },
+        confused: pk.volatile.confused || 0,
+        trapped: pk.volatile.trapped || 0,
+        trappedBy: pk.volatile.trappedBy || null,
+        seeded: Boolean(pk.volatile.seeded),
+        perish: pk.volatile.perish || 0,
+        substitute: pk.volatile.substitute || 0,
+        focusEnergy: pk.volatile.focusEnergy || 0
+    };
+}
+
+function applyBatonPassState(pk, state) {
+    if (!pk || !state) return;
+    pk.modifiers = { ...pk.modifiers, ...state.modifiers };
+    pk.volatile.confused = state.confused;
+    pk.volatile.trapped = state.trapped;
+    pk.volatile.trappedBy = state.trappedBy;
+    pk.volatile.seeded = state.seeded;
+    pk.volatile.perish = state.perish;
+    pk.volatile.substitute = state.substitute;
+    pk.volatile.focusEnergy = state.focusEnergy;
+}
+
 function enemyCanSwitch(enemy) {
     if (!enemy || enemy.stats.hp <= 0 || enemy.volatile.chargingMove || enemy.volatile.mustRecharge) return false;
     if (State.ai.enemySwitchCooldown > 0 || State.ai.enemyLastSwitchTurn === State.turn - 1 || enemy.turnsActive < 1) return false;
@@ -3054,6 +3322,8 @@ function enemyCanSwitch(enemy) {
 
 function evaluateEnemySwitch(enemy, player) {
     if (!enemyCanSwitch(enemy)) return null;
+    const canPass = getLegalMoves(enemy).some(move => move.origName === 'baton-pass') && availableBatonPassTargets(false).length > 0;
+    if (canPass && batonPassStateValue(enemy) >= 4) return null;
     const currentScore = matchupScore(enemy, player, true);
     const currentBest = bestDamageOption(enemy, player, false);
     const incomingThreat = bestDamageOption(player, enemy, true);
@@ -3125,6 +3395,20 @@ function statusMoveScore(enemy, player, move, threatDamage) {
     if (move.origName === 'taunt') score += player.volatile.taunt <= 0 && player.moves.filter(m => m.category === 'status').length >= 2 ? 8 : -4;
     if (move.origName === 'attract') { const valid = enemy.gender !== 'genderless' && player.gender !== 'genderless' && enemy.gender !== player.gender && !hasAbility(player, 'oblivious') && !hasAbility(player, 'aroma-veil'); score += valid && !player.volatile.infatuatedBy ? 6 : -12; }
     if (move.origName === 'substitute') score += enemy.volatile.substitute <= 0 && hpFraction > 0.55 ? 5 : -8;
+    if (move.origName === 'baton-pass') {
+        const target = chooseBatonPassTarget(enemy, false, move.batonPassTargetIndex);
+        if (!target) score -= 40;
+        else {
+            const passValue = batonPassStateValue(enemy);
+            const currentMatchup = matchupScore(enemy, player, true);
+            const recipientMatchup = batonPassRecipientScore(target.pk, enemy, player, false);
+            score += passValue * 2.1 + Math.max(-3, recipientMatchup - currentMatchup);
+            if (threatDamage >= enemy.stats.hp * 0.65) score += 6;
+            if (passValue <= 0.5 && recipientMatchup <= currentMatchup + 2) score -= 10;
+            if (State.field.enemy.tailwind > 0) score += 1.5;
+            if (State.ai.enemySwitchCooldown > 0) score -= 22;
+        }
+    }
     if (move.origName === 'belly-drum') score += hpFraction > 0.72 && enemy.modifiers.attack < 4 ? 7 : -12;
     if (move.origName === 'haze') {
         const playerBoosts = Object.values(player.modifiers).filter(v => v > 0).reduce((a, b) => a + b, 0);
@@ -3143,6 +3427,13 @@ function statusMoveScore(enemy, player, move, threatDamage) {
         const existing = selfChanges.reduce((sum, change) => sum + Math.max(0, enemy.modifiers[change.stat.name] || 0), 0);
         score += positive * (hpFraction > 0.65 ? 3 : hpFraction > 0.4 ? 1.5 : 0.3) - existing * 1.5;
         if (threatDamage >= enemy.stats.hp * 0.6) score -= 5;
+        if (CHARGE_EFFECT_TWO_TURN_MOVES.has(move.origName)) {
+            if (hasItem(enemy, 'power-herb')) score += 7;
+            else {
+                // 溜めターンに倒される危険が高い対面では使用を避ける。
+                score -= threatDamage >= enemy.stats.hp ? 24 : threatDamage >= enemy.stats.hp * 0.55 ? 12 : threatDamage >= enemy.stats.hp * 0.3 ? 5 : 1;
+            }
+        }
     }
     const targetDrops = move.statChangeTarget !== 'user' ? move.statChanges.filter(change => change.change < 0) : [];
     score += targetDrops.reduce((sum, change) => sum + Math.abs(change.change) * 1.8, 0);
@@ -3196,6 +3487,10 @@ function chooseEnemyMove(enemy, context = {}) {
     const player = State.playerTeam[State.activePlayerIdx];
     const legal = getLegalMoves(enemy);
     const chosen = weightedNearBest(legal.map(move => ({ move, score: scoreEnemyMove(enemy, player, move, context) })));
+    if (chosen?.move?.origName === 'baton-pass') {
+        const target = chooseBatonPassTarget(enemy, false);
+        if (target) return { ...chosen.move, sourceMove: chosen.move, batonPassTargetIndex: target.index };
+    }
     return chosen?.move || { ...STRUGGLE_MOVE };
 }
 
@@ -3317,10 +3612,15 @@ function calculateConfusionDamage(pk) {
 function prepareTurnMove(pk, selectedMove) {
     if (pk?.volatile?.mustRecharge) return { ...RECHARGE_ACTION };
     if (pk?.volatile?.chargingMove) {
-        return { ...pk.volatile.chargingMove, sourceMove: pk.volatile.chargingMove, isChargeRelease: true, priorityOverride: 2.1, pp: Infinity };
+        const storedMove = pk.volatile.chargingMove;
+        const releaseMove = { ...storedMove, sourceMove: storedMove, isChargeRelease: true, pp: Infinity };
+        // 既存仕様として、姿を隠す2ターン技の自動発動だけは優先度+2.1。
+        // ジオコントロールの能力上昇は通常の優先度で解放する。
+        if (INVULNERABLE_TWO_TURN_MOVES.has(storedMove.origName)) releaseMove.priorityOverride = 2.1;
+        return releaseMove;
     }
     if (!selectedMove) return { ...STRUGGLE_MOVE };
-    if (!INVULNERABLE_TWO_TURN_MOVES.has(selectedMove.origName)) return selectedMove;
+    if (!TWO_TURN_MOVES.has(selectedMove.origName)) return selectedMove;
     if (hasItem(pk, 'power-herb')) return { ...selectedMove, sourceMove: selectedMove, usePowerHerb: true };
     return { ...selectedMove, sourceMove: selectedMove, isChargeSetup: true };
 }
@@ -3365,14 +3665,19 @@ async function executeTurn(playerMove, options = {}) {
             if (player.megaPending) await applyMegaEvolution(player, true);
             if (enemy.megaPending) await applyMegaEvolution(enemy, false);
         }
-        if (action.atk.stats.hp <= 0 || action.def.stats.hp <= 0) continue;
-        await performAction(action.atk, action.def, action.move, action.isPlayer);
+        const liveAttacker = action.isPlayer ? State.playerTeam[State.activePlayerIdx] : State.enemyTeam[State.activeEnemyIdx];
+        const liveDefender = action.isPlayer ? State.enemyTeam[State.activeEnemyIdx] : State.playerTeam[State.activePlayerIdx];
+        // 先にバトンタッチ・強制交代が起きた場合、交代前の個体の予約行動は取り消し、攻撃対象は現在の場へ更新する。
+        if (liveAttacker !== action.atk || liveAttacker?.stats.hp <= 0 || liveDefender?.stats.hp <= 0) continue;
+        await performAction(liveAttacker, liveDefender, action.move, action.isPlayer);
     }
     State.ai.enemyLastAction = 'move';
     await applyEndTurnEffects();
     decrementTimers();
-    player.turnsActive++;
-    enemy.turnsActive++;
+    const endPlayer = State.playerTeam[State.activePlayerIdx];
+    const endEnemy = State.enemyTeam[State.activeEnemyIdx];
+    if (endPlayer?.stats.hp > 0) endPlayer.turnsActive++;
+    if (endEnemy?.stats.hp > 0) endEnemy.turnsActive++;
     updateBattleUI();
     await checkFaint();
     const currentPlayer = State.playerTeam[State.activePlayerIdx];
@@ -3387,15 +3692,17 @@ async function executeTurn(playerMove, options = {}) {
     }
 }
 
-async function switchPlayerTo(targetIndex) {
+async function switchPlayerTo(targetIndex, options = {}) {
     const outgoing = State.playerTeam[State.activePlayerIdx];
     const incoming = State.playerTeam[targetIndex];
     if (!outgoing || !incoming || targetIndex === State.activePlayerIdx || incoming.stats.hp <= 0) return null;
+    const passState = options.batonPass ? captureBatonPassState(outgoing) : null;
     outgoing.megaPending = false;
     resetOnSwitch(outgoing, true);
     State.activePlayerIdx = targetIndex;
     resetOnSwitch(incoming, false);
-    logMsg(`🔄 ${escapeHTML(outgoing.name)} を戻した！`);
+    if (passState) applyBatonPassState(incoming, passState);
+    logMsg(options.batonPass ? `🎗️ ${escapeHTML(outgoing.name)} はバトンを渡して戻った！` : `🔄 ${escapeHTML(outgoing.name)} を戻した！`);
     logMsg(`ゆけっ！ <b>${escapeHTML(incoming.name)}</b>！`);
     await ensureBattleEntryForm(incoming);
     announceEntryItem(incoming);
@@ -3405,19 +3712,21 @@ async function switchPlayerTo(targetIndex) {
     return incoming;
 }
 
-async function switchEnemyTo(targetIndex, reason = '') {
+async function switchEnemyTo(targetIndex, reason = '', options = {}) {
     const outgoing = State.enemyTeam[State.activeEnemyIdx];
     const incoming = State.enemyTeam[targetIndex];
     if (!outgoing || !incoming || targetIndex === State.activeEnemyIdx || incoming.stats.hp <= 0) return null;
+    const passState = options.batonPass ? captureBatonPassState(outgoing) : null;
     outgoing.megaPending = false;
     resetOnSwitch(outgoing, true);
     State.activeEnemyIdx = targetIndex;
     resetOnSwitch(incoming, false);
+    if (passState) applyBatonPassState(incoming, passState);
     State.ai.enemySwitchCooldown = 2;
     State.ai.enemyLastAction = 'switch';
     State.ai.enemyLastSwitchTurn = State.turn;
     State.ai.enemyVoluntarySwitches++;
-    logMsg(`🔄 相手は ${escapeHTML(outgoing.name)} を戻した！`);
+    logMsg(options.batonPass ? `🎗️ 相手の ${escapeHTML(outgoing.name)} はバトンを渡して戻った！` : `🔄 相手は ${escapeHTML(outgoing.name)} を戻した！`);
     logMsg(`相手は <b>${escapeHTML(incoming.name)}</b> を繰り出した！`);
     await ensureBattleEntryForm(incoming);
     announceEntryItem(incoming);
@@ -3464,8 +3773,9 @@ async function executeEnemySwitchTurn(targetIndex, playerMove, reason = '') {
 
     await applyEndTurnEffects();
     decrementTimers();
+    const activePlayer = State.playerTeam[State.activePlayerIdx];
     const activeEnemy = State.enemyTeam[State.activeEnemyIdx];
-    if (player.stats.hp > 0) player.turnsActive++;
+    if (activePlayer?.stats.hp > 0) activePlayer.turnsActive++;
     if (activeEnemy?.stats.hp > 0) activeEnemy.turnsActive++;
     updateBattleUI();
     await checkFaint(null, pursuitIntercept && outgoing.stats.hp <= 0 ? targetIndex : null);
@@ -3708,7 +4018,7 @@ async function performAction(atk, def, move, isPlayer) {
         const callable = atk.moves.filter(candidate =>
             candidate.origName !== 'sleep-talk' &&
             candidate.pp > 0 &&
-            !INVULNERABLE_TWO_TURN_MOVES.has(candidate.origName) &&
+            !TWO_TURN_MOVES.has(candidate.origName) &&
             !['rest', 'focus-punch', 'beak-blast', 'shell-trap'].includes(candidate.origName)
         );
         if (!callable.length) {
@@ -3723,7 +4033,8 @@ async function performAction(atk, def, move, isPlayer) {
 
     if (move.isChargeSetup) {
         atk.volatile.chargingMove = move.sourceMove || move;
-        atk.volatile.semiInvulnerable = move.origName;
+        // ジオコントロールは溜め中も攻撃を受ける。姿を隠す技だけ無敵状態にする。
+        atk.volatile.semiInvulnerable = INVULNERABLE_TWO_TURN_MOVES.has(move.origName) ? move.origName : false;
         logMsg(`🌀 ${escapeHTML(atk.name)} は ${escapeHTML(TWO_TURN_CHARGE_MESSAGES[move.origName] || '力をためている！')}`);
         updateBattleUI();
         return;
@@ -4504,6 +4815,22 @@ function tryProtectMove(atk, move) {
     return true;
 }
 
+async function performBatonPass(atk, isPlayer, preferredIndex = null) {
+    const target = chooseBatonPassTarget(atk, isPlayer, preferredIndex);
+    if (!target) {
+        logMsg('❌ バトンタッチできる控えがいない！');
+        return false;
+    }
+    const incoming = isPlayer
+        ? await switchPlayerTo(target.index, { batonPass: true })
+        : await switchEnemyTo(target.index, 'バトンタッチで能力を引き継ぐ', { batonPass: true });
+    if (!incoming) return false;
+    const passedStages = Object.entries(incoming.modifiers).filter(([, value]) => value !== 0).map(([stat, value]) => `${STAT_LABELS[stat] || stat}${value > 0 ? '+' : ''}${value}`).join('・');
+    if (passedStages) logMsg(`📈 ${escapeHTML(incoming.name)} は能力変化を引き継いだ！（${escapeHTML(passedStages)}）`);
+    if (incoming.volatile.substitute > 0) logMsg(`🪆 ${escapeHTML(incoming.name)} はみがわりを引き継いだ！`);
+    return true;
+}
+
 async function handleSpecialStatusMove(atk, def, move, isPlayer) {
     const own = sideField(isPlayer);
     const foe = foeField(isPlayer);
@@ -4538,6 +4865,9 @@ async function handleSpecialStatusMove(atk, def, move, isPlayer) {
             own.tailwind = 4; logMsg('🌪️ 味方の場に追い風が吹いた！');
             if (hasAbility(atk, 'wind-rider')) changeStat(atk, 'attack', 1, atk);
             if (hasAbility(atk, 'wind-power')) { atk.abilityState.charged = true; logMsg(`⚡ ${escapeHTML(atk.name)} は ふうりょくでんき で充電した！`); }
+            return true;
+        case 'baton-pass':
+            await performBatonPass(atk, isPlayer, move.batonPassTargetIndex);
             return true;
         case 'leech-seed': if (def.types.includes('grass')) logMsg('🌿 くさタイプには効かなかった！'); else { def.volatile.seeded = true; logMsg(`🌱 ${escapeHTML(def.name)} にやどりぎを植えつけた！`); } return true;
         case 'substitute': {
@@ -4888,7 +5218,9 @@ function winBattle() {
     safeStorageSet('battle-factory-max-streak', State.maxStreak);
     document.getElementById('streak').textContent = State.streak;
     document.getElementById('max-streak').textContent = State.maxStreak;
-    if (State.streak % 25 === 0) alert(`🎉 素晴らしい！連勝記録が ${State.streak} に到達しました！`);
+    const awardedSymbols = awardFactorySymbolsForRecord(State.streak);
+    const isSecretSymbolMilestone = awardedSymbols.length > 0 || Object.values(FACTORY_SYMBOL_DEFS).some(def => def.threshold === State.streak);
+    if (State.streak % 25 === 0 && !isSecretSymbolMilestone) alert(`🎉 素晴らしい！連勝記録が ${State.streak} に到達しました！`);
     button.onclick = showSwapScreen;
 }
 function loseBattle(isDraw) {
@@ -4941,11 +5273,13 @@ function showSwapScreen() {
 window.addEventListener('load', () => {
     applyTheme(getSelectedThemeKey());
     renderImplementedItemList();
+    renderFactorySymbols();
     document.getElementById('max-streak').textContent = State.maxStreak;
     document.getElementById('btn-options').onclick = openOptions;
     document.getElementById('btn-close-options').onclick = closeOptions;
     document.getElementById('btn-end-game').onclick = endCurrentGame;
     document.getElementById('btn-restart-game').onclick = () => location.reload();
+    document.getElementById('btn-close-symbol-award').onclick = closeFactorySymbolAward;
     const themeSelect = document.getElementById('theme-select');
     if (themeSelect) {
         themeSelect.value = getSelectedThemeKey();
@@ -4953,6 +5287,8 @@ window.addEventListener('load', () => {
     }
     UI.options?.addEventListener('click', event => { if (event.target === UI.options) closeOptions(); });
     startDraftPhase();
+    // 旧版ですでに条件を達成していた記録も、事前表示せず起動後に突然授与する。
+    setTimeout(() => awardFactorySymbolsForRecord(State.maxStreak), 900);
 });
 
 

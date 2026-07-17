@@ -89,7 +89,7 @@
         .switch-cancel { width: 100%; padding: 8px 12px; background: #7f8c8d; }
         .options-button { position: absolute; top: 12px; right: 12px; z-index: 30; width: auto; padding: 7px 11px; font-size: 12px; background: #566573; }
         .modal-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 18px; }
-        .modal-box { width: min(420px, 100%); padding: 22px; border-radius: 12px; background: #fff; box-shadow: 0 12px 35px rgba(0,0,0,.35); text-align: center; }
+        .modal-box { width: min(520px, 100%); max-height: min(88vh, 820px); overflow-y: auto; padding: 22px; border-radius: 12px; background: #fff; box-shadow: 0 12px 35px rgba(0,0,0,.35); text-align: center; }
         .modal-actions { display: grid; gap: 10px; margin-top: 18px; }
         .danger-btn { background: #c0392b; }
         .end-screen { padding: 45px 15px; }
@@ -143,6 +143,12 @@
         .theme-config label { display: block; font-weight: 700; margin-bottom: 6px; }
         .theme-select { width: 100%; padding: 11px 12px; border: 2px solid var(--container-border); border-radius: 10px; background: #fff; color: var(--primary); font-size: 15px; font-weight: 700; }
         .theme-help { margin-top: 8px; font-size: 12px; color: #666; line-height: 1.5; }
+        .implemented-items { margin-top: 14px; border: 1px solid var(--container-border); border-radius: 10px; background: #f8fafc; text-align: left; overflow: hidden; }
+        .implemented-items summary { cursor: pointer; padding: 11px 12px; font-weight: 800; color: var(--primary); background: rgba(255,255,255,.75); }
+        .implemented-items[open] summary { border-bottom: 1px solid var(--container-border); }
+        .implemented-items-meta { padding: 9px 12px 0; font-size: 12px; color: #5f6b76; line-height: 1.5; }
+        .implemented-items-list { padding: 10px 12px 13px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; max-height: 310px; overflow-y: auto; overscroll-behavior: contain; }
+        .implemented-item-chip { min-width: 0; padding: 6px 8px; border-radius: 7px; background: #fff; border: 1px solid #dfe6ec; font-size: 12px; font-weight: 700; color: #34495e; overflow-wrap: anywhere; }
         /* --- スマートフォン／タブレット最適化 --- */
         @media (max-width: 767px) {
             body {
@@ -248,6 +254,7 @@
                 padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
             }
             .theme-select { min-height: 48px; }
+            .implemented-items-list { grid-template-columns: 1fr; max-height: 260px; }
             .end-screen { padding: 34px 10px; }
         }
 
@@ -378,6 +385,11 @@
             </select>
             <div class="theme-help">選んだテーマは保存され、次回以降の起動時にも自動で反映されます。</div>
         </div>
+        <details id="implemented-items-details" class="implemented-items">
+            <summary>実装済みもちもの一覧を見る</summary>
+            <div id="implemented-items-meta" class="implemented-items-meta"></div>
+            <div id="implemented-items-list" class="implemented-items-list"></div>
+        </details>
         <div class="modal-actions">
             <button id="btn-close-options" type="button">ゲームに戻る</button>
             <button id="btn-end-game" class="danger-btn" type="button">ゲームを終了する</button>
@@ -499,7 +511,7 @@ const RESIST_BERRIES = {
     bug: 'tanga-berry', rock: 'charti-berry', ghost: 'kasib-berry', dragon: 'haban-berry', dark: 'colbur-berry',
     steel: 'babiri-berry', fairy: 'roseli-berry', normal: 'chilan-berry'
 };
-const MEGA_STONE_RATE = 0.48;
+const MEGA_STONE_RATE = 0.25; // メガ対応個体でも通常もちものが主候補になるよう調整
 
 const ABILITY_NAMES = {
     'adaptability':'てきおうりょく','aerilate':'スカイスキン','pixilate':'フェアリースキン','refrigerate':'フリーズスキン','galvanize':'エレキスキン',
@@ -669,7 +681,7 @@ const SPECIAL_STATUS_MOVES = new Set([
     'reflect', 'light-screen', 'aurora-veil', 'stealth-rock', 'spikes', 'toxic-spikes', 'sticky-web', 'defog', 'court-change',
     'rain-dance', 'sunny-day', 'sandstorm', 'hail', 'snowscape', 'electric-terrain', 'grassy-terrain', 'misty-terrain', 'psychic-terrain',
     'trick-room', 'tailwind', 'leech-seed', 'substitute', 'belly-drum', 'haze', 'rest', 'heal-bell', 'aromatherapy', 'refresh',
-    'psych-up', 'topsy-turvy', 'perish-song', 'taunt', ...INTENTIONAL_NO_EFFECT_MOVES
+    'psych-up', 'topsy-turvy', 'perish-song', 'taunt', 'sleep-talk', ...INTENTIONAL_NO_EFFECT_MOVES
 ]);
 const POST_DAMAGE_SPECIAL_MOVES = new Set(['rapid-spin', 'mortal-spin', 'clear-smog', 'brick-break', 'psychic-fangs', 'raging-bull', 'ice-spinner', 'steel-roller', 'knock-off', 'thief', 'covet', 'fell-stinger', 'salt-cure']);
 
@@ -819,6 +831,17 @@ function itemName(slug) {
     if (!slug) return 'なし';
     const api = State.cache.items[`${POKE_API}/item/${slug}`];
     return api ? getJaName(api.names, ITEM_DEFS[slug]?.ja || '道具名未取得') : (ITEM_DEFS[slug]?.ja || '道具名未取得');
+}
+function renderImplementedItemList() {
+    const list = document.getElementById('implemented-items-list');
+    const meta = document.getElementById('implemented-items-meta');
+    if (!list || !meta) return;
+    const items = Object.entries(ITEM_DEFS)
+        .filter(([slug]) => !isMegaStone(slug))
+        .map(([slug, definition]) => ({ slug, name: definition?.ja || itemName(slug) }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    meta.textContent = `メガストーンを除く ${items.length} 種類を、抽選・効果処理の対象として登録しています。技・特性・能力値との相性を考慮して選ばれます。`;
+    list.innerHTML = items.map(item => `<div class="implemented-item-chip">${escapeHTML(item.name)}</div>`).join('');
 }
 function abilityName(slug) {
     if (!slug) return '特性データ未登録';
@@ -1255,12 +1278,115 @@ function isDamagingMove(move) {
     return move.power > 0 || OHKO_MOVES.has(move.origName) || FIXED_DAMAGE_MOVES.has(move.origName) || move.metaCategory.startsWith('damage');
 }
 
-async function selectOperationalMoves(moveRefs) {
-    const refs = shuffle(moveRefs.map(entry => entry.move || entry)).slice(0, 24);
-    const accepted = [];
-    let damagingCandidate = null;
-    for (let offset = 0; offset < refs.length && accepted.length < 4; offset += 8) {
-        const batch = refs.slice(offset, offset + 8);
+const MOVE_DEPENDENCY_RULES = Object.freeze({
+    'snore': { requiresAny: ['rest'], chance: 0.28 },
+    'sleep-talk': { requiresAny: ['rest'], chance: 0.34 }
+});
+const DEPENDENT_MOVE_NAMES = new Set(Object.keys(MOVE_DEPENDENCY_RULES));
+const WEATHER_SETUP_MOVES = new Set(['rain-dance', 'sunny-day', 'sandstorm', 'hail', 'snowscape']);
+const TERRAIN_SETUP_MOVES = new Set(['electric-terrain', 'grassy-terrain', 'misty-terrain', 'psychic-terrain']);
+const BINDING_MOVES = new Set(['bind', 'clamp', 'fire-spin', 'infestation', 'magma-storm', 'sand-tomb', 'snap-trap', 'thunder-cage', 'whirlpool', 'wrap']);
+// 攻撃技がなくても、継続ダメージや滅びのカウントで勝てる構成は有効とみなす。
+// 逆に、まもる・回復・能力変化だけで相手のHPを一切減らせない構成は生成しない。
+const PASSIVE_WIN_MOVE_NAMES = new Set([
+    'toxic', 'poison-powder', 'poison-gas', 'toxic-thread', 'will-o-wisp',
+    'leech-seed', 'perish-song', 'sandstorm', 'hail'
+]);
+
+function isPassiveWinMove(move, context = {}) {
+    if (!move || move.category !== 'status') return false;
+    if (PASSIVE_WIN_MOVE_NAMES.has(move.origName)) return true;
+    // PokeAPI上で状態異常が明示されている変化技も、継続ダメージの勝ち筋として扱う。
+    return ['poison', 'burn'].includes(move.effect);
+}
+function isWinConditionMove(move, context = {}) {
+    return isDamagingMove(move) || isPassiveWinMove(move, context);
+}
+function hasWinCondition(moves, context = {}) {
+    return moves.some(move => isWinConditionMove(move, context));
+}
+
+function weightedPick(entries) {
+    const valid = entries.filter(entry => entry && Number(entry.weight) > 0);
+    if (!valid.length) return null;
+    const total = valid.reduce((sum, entry) => sum + Number(entry.weight), 0);
+    let roll = Math.random() * total;
+    for (const entry of valid) {
+        roll -= Number(entry.weight);
+        if (roll <= 0) return entry.value;
+    }
+    return valid[valid.length - 1].value;
+}
+function selectedHasMove(selected, name) { return selected.some(move => move.origName === name); }
+function dependencySatisfied(moveName, selected) {
+    const rule = MOVE_DEPENDENCY_RULES[moveName];
+    if (!rule) return true;
+    const names = new Set(selected.map(move => move.origName));
+    return rule.requiresAny.some(required => names.has(required));
+}
+function hasRedundantRole(move, selected) {
+    if (PROTECT_MOVES.has(move.origName) && selected.some(current => PROTECT_MOVES.has(current.origName))) return true;
+    if (WEATHER_SETUP_MOVES.has(move.origName) && selected.some(current => WEATHER_SETUP_MOVES.has(current.origName))) return true;
+    if (TERRAIN_SETUP_MOVES.has(move.origName) && selected.some(current => TERRAIN_SETUP_MOVES.has(current.origName))) return true;
+    if (move.origName === 'rest' && selectedHasMove(selected, 'rest')) return true;
+    return false;
+}
+function moveSelectionWeight(move, context, selected) {
+    // タイプ一致や攻撃・特攻の高低には寄せず、覚えられる技の意外な組み合わせを残す。
+    // 役割が完全に重複する技だけを弱く抑制する。
+    let weight = 1 + Math.random() * 1.4;
+    if (hasRedundantRole(move, selected)) weight *= 0.08;
+    return Math.max(0.05, weight);
+}
+function chooseMoveFromPool(pool, context, selected) {
+    return weightedPick(pool.map(move => ({ value: move, weight: moveSelectionWeight(move, context, selected) })));
+}
+function replaceForDependent(selected, dependent, context, protectedNames = new Set()) {
+    if (selected.some(move => move.origName === dependent.origName)) return selected;
+    if (selected.length < 4) return [...selected, dependent];
+    const winConditionCount = selected.filter(move => isWinConditionMove(move, context)).length;
+    const candidates = selected
+        .map((move, index) => ({ move, index, score: moveSelectionWeight(move, context, selected) }))
+        .filter(entry => !protectedNames.has(entry.move.origName))
+        .filter(entry => !(isWinConditionMove(entry.move, context) && winConditionCount <= 1))
+        .sort((a, b) => a.score - b.score);
+    if (!candidates.length) return selected;
+    const copy = [...selected];
+    copy[candidates[0].index] = dependent;
+    return copy;
+}
+function maybeAddDependentPackage(selected, candidates, context, enablerNames, dependentNames, chanceValue) {
+    if (!enablerNames.some(name => selectedHasMove(selected, name)) || Math.random() >= chanceValue) return selected;
+    const options = dependentNames.map(name => candidates.find(move => move.origName === name)).filter(Boolean);
+    if (!options.length) return selected;
+    const dependent = chooseMoveFromPool(options, context, selected) || options[0];
+    return replaceForDependent(selected, dependent, context, new Set(enablerNames));
+}
+
+async function selectOperationalMoves(moveRefs, context = {}) {
+    const allRefs = moveRefs.map(entry => entry.move || entry).filter(ref => ref?.name && ref?.url);
+    const refMap = new Map(allRefs.map(ref => [ref.name, ref]));
+    const ordinaryRefs = shuffle(allRefs.filter(ref => !DEPENDENT_MOVE_NAMES.has(ref.name))).slice(0, 24);
+    const synergyRefs = [];
+    for (const [dependentName, rule] of Object.entries(MOVE_DEPENDENCY_RULES)) {
+        const dependentRef = refMap.get(dependentName);
+        if (!dependentRef) continue;
+        const availableEnablers = rule.requiresAny.map(name => refMap.get(name)).filter(Boolean);
+        if (!availableEnablers.length) continue;
+        synergyRefs.push(dependentRef, ...shuffle(availableEnablers).slice(0, 2));
+    }
+    const uniqueRefs = [];
+    const seenRefs = new Set();
+    for (const ref of [...ordinaryRefs, ...synergyRefs]) {
+        if (seenRefs.has(ref.name)) continue;
+        seenRefs.add(ref.name);
+        uniqueRefs.push(ref);
+        if (uniqueRefs.length >= 32) break;
+    }
+
+    const candidates = [];
+    for (let offset = 0; offset < uniqueRefs.length; offset += 8) {
+        const batch = uniqueRefs.slice(offset, offset + 8);
         const details = await mapLimit(batch, 8, ref => fetchAPI(ref.url, State.cache.moves, 1, 10000));
         for (const data of details) {
             if (!data) continue;
@@ -1269,23 +1395,83 @@ async function selectOperationalMoves(moveRefs) {
                 State.audit.sampledRejectedMoves.add(move.origName);
                 continue;
             }
-            if (accepted.some(current => current.origName === move.origName)) continue;
-            if (isDamagingMove(move) && !damagingCandidate) damagingCandidate = move;
-            accepted.push(move);
-            if (accepted.length >= 4) break;
+            if (!candidates.some(current => current.origName === move.origName)) candidates.push(move);
         }
     }
-    if (accepted.length && !accepted.some(isDamagingMove) && damagingCandidate) accepted[accepted.length - 1] = damagingCandidate;
-    if (!accepted.length) accepted.push({ ...STRUGGLE_MOVE });
-    return accepted.slice(0, 4);
+    if (!candidates.length) return [{ ...STRUGGLE_MOVE }];
+
+    // 最初の抽出に勝ち筋となる技がなかった場合だけ、追加候補を少量取得する。
+    // 通常は追加通信を行わないため、起動速度への影響を抑えられる。
+    if (!candidates.some(move => isWinConditionMove(move, context))) {
+        const remainingRefs = shuffle(allRefs.filter(ref => !seenRefs.has(ref.name) && !DEPENDENT_MOVE_NAMES.has(ref.name))).slice(0, 24);
+        for (let offset = 0; offset < remainingRefs.length; offset += 8) {
+            const batch = remainingRefs.slice(offset, offset + 8);
+            const details = await mapLimit(batch, 8, ref => fetchAPI(ref.url, State.cache.moves, 1, 10000));
+            for (const data of details) {
+                if (!data) continue;
+                const move = normalizeMove(data);
+                if (!isMoveOperational(move)) continue;
+                if (!candidates.some(current => current.origName === move.origName)) candidates.push(move);
+            }
+            if (candidates.some(move => isWinConditionMove(move, context))) break;
+        }
+    }
+
+    const ordinary = candidates.filter(move => !DEPENDENT_MOVE_NAMES.has(move.origName));
+    const selected = [];
+    // 攻撃技の本数を固定せず、変化技4つの構成も含めて全候補から抽選する。
+    while (selected.length < 4) {
+        const pool = ordinary.filter(move => !selected.some(current => current.origName === move.origName));
+        if (!pool.length) break;
+        const next = chooseMoveFromPool(pool, context, selected);
+        if (!next) break;
+        selected.push(next);
+    }
+
+    let result = selected;
+    result = maybeAddDependentPackage(result, candidates, context, ['rest'], ['sleep-talk', 'snore'], 0.34);
+
+    result = result.filter((move, index, array) => array.findIndex(other => other.origName === move.origName) === index);
+    result = result.filter(move => dependencySatisfied(move.origName, result));
+    // 攻撃技は必須にしない。ただし相手のHPを減らす手段が一つもない場合のみ、
+    // 攻撃技または継続ダメージ技を1枠だけ補う。
+    if (!hasWinCondition(result, context)) {
+        const winPool = ordinary.filter(move => isWinConditionMove(move, context) && !result.some(current => current.origName === move.origName));
+        const replacementMove = chooseMoveFromPool(winPool, context, result) || { ...STRUGGLE_MOVE };
+        if (replacementMove) {
+            const replaceable = result
+                .map((move, index) => ({ move, index }))
+                .filter(entry => !['rest'].includes(entry.move.origName))
+                .filter(entry => !DEPENDENT_MOVE_NAMES.has(entry.move.origName));
+            const targetIndex = replaceable.length ? replaceable[Math.floor(Math.random() * replaceable.length)].index : Math.max(0, result.length - 1);
+            if (result.length >= 4) result[targetIndex] = replacementMove;
+            else result.push(replacementMove);
+        }
+    }
+    while (result.length < 4) {
+        const pool = ordinary.filter(move => !result.some(current => current.origName === move.origName));
+        const next = chooseMoveFromPool(pool, context, result);
+        if (!next) break;
+        result.push(next);
+    }
+    if (!result.length) result.push({ ...STRUGGLE_MOVE });
+    return shuffle(result.slice(0, 4));
 }
 
+function addItemCandidate(candidateMap, slug, weight) {
+    if (!slug || !isItemAvailable(slug) || weight <= 0) return;
+    candidateMap.set(slug, (candidateMap.get(slug) || 0) + weight);
+}
 function chooseItem(pokemon) {
     const megaOptions = pokemon.megaOptions || [];
     if (megaOptions.length && Math.random() < MEGA_STONE_RATE) {
         return megaOptions[Math.floor(Math.random() * megaOptions.length)].stone;
     }
+
+    const candidates = new Map();
+    const add = (slug, weight) => addItemCandidate(candidates, slug, weight);
     const moves = pokemon.moves;
+    const moveNames = new Set(moves.map(move => move.origName));
     const damaging = moves.filter(isDamagingMove);
     const physical = damaging.filter(move => move.category === 'physical').length;
     const special = damaging.filter(move => move.category === 'special').length;
@@ -1294,38 +1480,73 @@ function chooseItem(pokemon) {
     const hasHazards = moves.some(move => ['stealth-rock', 'spikes', 'toxic-spikes', 'sticky-web'].includes(move.origName));
     const hasMultiHit = moves.some(move => move.maxHits > 1);
     const hasDrain = moves.some(move => move.drain > 0);
-    const hasWeather = moves.find(move => ['rain-dance', 'sunny-day', 'sandstorm', 'hail', 'snowscape'].includes(move.origName));
-    const hasTerrain = moves.some(move => move.origName.endsWith('-terrain'));
+    const hasWeather = moves.find(move => WEATHER_SETUP_MOVES.has(move.origName));
+    const hasTerrain = moves.find(move => TERRAIN_SETUP_MOVES.has(move.origName));
+    const hasSoundMove = moves.some(move => moveHasFlag(move, 'sound'));
+    const hasPunchMove = moves.some(move => moveHasFlag(move, 'punch'));
+    const hasContactMove = moves.some(move => moveHasFlag(move, 'contact'));
+    const hasLowAccuracyMove = moves.some(move => move.accuracy && move.accuracy <= 80);
+    const hasBindingMove = moves.some(move => BINDING_MOVES.has(move.origName));
+    const hasTwoTurnMove = moves.some(move => INVULNERABLE_TWO_TURN_MOVES.has(move.origName));
+    const hasRecoilMove = moves.some(move => moveHasFlag(move, 'recoil'));
 
-    if (['protosynthesis', 'quark-drive'].includes(pokemon.ability) && isItemAvailable('booster-energy')) return 'booster-energy';
-    if (moves.some(move => INVULNERABLE_TWO_TURN_MOVES.has(move.origName)) && Math.random() < 0.35 && isItemAvailable('power-herb')) return 'power-herb';
-    if (hasWalls) return 'light-clay';
-    if (hasHazards && pokemon.stats.speed >= 80) return 'focus-sash';
-    if (hasMultiHit) return 'loaded-dice';
-    if (hasDrain) return 'big-root';
-    if (hasWeather) return ({ 'rain-dance': 'damp-rock', 'sunny-day': 'heat-rock', sandstorm: 'smooth-rock', hail: 'icy-rock', snowscape: 'icy-rock' })[hasWeather.origName];
-    if (hasTerrain) return 'terrain-extender';
-    if (!hasStatus && damaging.length >= 3 && pokemon.stats['special-defense'] >= 80) return 'assault-vest';
-    if (physical >= 3 && special === 0) return Math.random() < 0.45 ? 'choice-band' : 'muscle-band';
-    if (special >= 3 && physical === 0) return Math.random() < 0.45 ? 'choice-specs' : 'wise-glasses';
-    if (pokemon.stats.speed >= 65 && pokemon.stats.speed <= 105 && damaging.length >= 2 && Math.random() < 0.35) return 'choice-scarf';
-    if (pokemon.types.includes('poison')) return 'black-sludge';
-    if (pokemon.stats.hp >= 170) return Math.random() < 0.6 ? 'leftovers' : 'rocky-helmet';
-    if (pokemon.stats.defense < 75 || pokemon.stats['special-defense'] < 75) return 'focus-sash';
+    // 常に選ばれ得る汎用候補。重みを低めにし、技・特性との相性候補を優先する。
+    [['sitrus-berry', 2.8], ['lum-berry', 1.8], ['leftovers', 1.8], ['life-orb', 1.5], ['expert-belt', 1.2],
+     ['weakness-policy', 1.0], ['air-balloon', 0.9], ['quick-claw', 0.8], ['scope-lens', 0.8], ['heavy-duty-boots', 1.0],
+     ['clear-amulet', 0.8], ['covert-cloak', 0.8], ['ability-shield', 0.6]].forEach(([slug, weight]) => add(slug, weight));
+
+    if (['protosynthesis', 'quark-drive'].includes(pokemon.ability)) add('booster-energy', 9);
+    if (pokemon.ability === 'guts') add('flame-orb', 9);
+    if (pokemon.ability === 'poison-heal') add('toxic-orb', 10);
+    if (pokemon.ability === 'magic-guard') add('life-orb', 6);
+    if (pokemon.ability === 'unburden') {
+        add('sitrus-berry', 4); add('lum-berry', 3); add('salac-berry', 3); add('liechi-berry', 2); add('petaya-berry', 2);
+    }
+    if (pokemon.ability === 'regenerator') add('heavy-duty-boots', 4);
+    if (moveNames.has('rest')) { add('chesto-berry', 8); add('lum-berry', 3); add('leftovers', 2); }
+    if (moveNames.has('belch')) { add('sitrus-berry', 6); add('lum-berry', 4); add('salac-berry', 3); }
+    if (moveNames.has('facade')) { if (pokemon.ability === 'guts') add('flame-orb', 10); add('toxic-orb', pokemon.ability === 'poison-heal' ? 10 : 3); }
+    if (moveNames.has('fling')) { add('iron-ball', 5); add('flame-orb', 3); add('toxic-orb', 3); add('poison-barb', 2); }
+    if (moveNames.has('trick') || moveNames.has('switcheroo')) {
+        if (physical >= special) add('choice-band', 5); else add('choice-specs', 5);
+        add('choice-scarf', 4); add('flame-orb', 2); add('toxic-orb', 2);
+    }
+    if (hasTwoTurnMove) add('power-herb', 7);
+    if (hasWalls) add('light-clay', 8);
+    if (hasHazards) { add('focus-sash', pokemon.stats.speed >= 80 ? 6 : 3); add('heavy-duty-boots', 2); }
+    if (hasMultiHit && pokemon.ability !== 'skill-link') add('loaded-dice', 7);
+    if (hasDrain) { add('big-root', 5); add('shell-bell', 2); }
+    if (hasRecoilMove) { add('shell-bell', 2.5); add('life-orb', 1); }
+    if (hasSoundMove) add('throat-spray', special >= physical ? 6 : 3);
+    if (hasPunchMove) add('punching-glove', 6);
+    if (hasContactMove) add('protective-pads', 2.5);
+    if (hasLowAccuracyMove) { add('wide-lens', 5); add('zoom-lens', 2); add('blunder-policy', 3); }
+    if (hasBindingMove) { add('binding-band', 5); add('grip-claw', 4); }
+    if (hasWeather) add(({ 'rain-dance': 'damp-rock', 'sunny-day': 'heat-rock', sandstorm: 'smooth-rock', hail: 'icy-rock', snowscape: 'icy-rock' })[hasWeather.origName], 8);
+    if (hasTerrain) {
+        add('terrain-extender', 7);
+        const seed = ({ 'electric-terrain': 'electric-seed', 'grassy-terrain': 'grassy-seed', 'misty-terrain': 'misty-seed', 'psychic-terrain': 'psychic-seed' })[hasTerrain.origName];
+        add(seed, 4);
+    }
+    if (moveNames.has('trick-room')) add('room-service', 6);
+    if (!hasStatus && damaging.length >= 3 && pokemon.stats['special-defense'] >= 80) add('assault-vest', 7);
+    if (physical >= 3 && special === 0) { add('choice-band', 5); add('muscle-band', 4); }
+    if (special >= 3 && physical === 0) { add('choice-specs', 5); add('wise-glasses', 4); }
+    if (pokemon.stats.speed >= 65 && pokemon.stats.speed <= 105 && damaging.length >= 2) add('choice-scarf', 3.5);
+    if (pokemon.types.includes('poison') && pokemon.ability !== 'poison-heal') add('black-sludge', 6);
+    if (pokemon.stats.hp >= 170) { add('leftovers', 5); add('rocky-helmet', 3.5); }
+    if (pokemon.stats.defense < 75 || pokemon.stats['special-defense'] < 75) add('focus-sash', 5);
 
     const primaryTypeItem = TYPE_TO_ITEM[pokemon.types[0]];
+    add(primaryTypeItem, 3.5);
     const weaknessTypes = Object.keys(RESIST_BERRIES).filter(type => getMultiplier(type, pokemon.types) > 1);
-    const resistBerry = weaknessTypes.length ? RESIST_BERRIES[weaknessTypes[Math.floor(Math.random() * weaknessTypes.length)]] : null;
-    const pool = [
-        'life-orb', 'expert-belt', 'weakness-policy', 'lum-berry', 'sitrus-berry', 'oran-berry', 'leppa-berry',
-        'enigma-berry', 'lansat-berry', 'starf-berry', 'micle-berry', 'kee-berry', 'maranga-berry',
-        'jaboca-berry', 'rowap-berry', resistBerry, 'air-balloon', 'quick-claw', 'scope-lens', 'wide-lens',
-        'shell-bell', 'heavy-duty-boots', 'clear-amulet', 'covert-cloak', 'mental-herb', 'throat-spray',
-        'punching-glove', 'protective-pads', 'utility-umbrella', 'shed-shell', 'binding-band', 'grip-claw',
-        'electric-seed', 'grassy-seed', 'misty-seed', 'psychic-seed', 'absorb-bulb', 'cell-battery',
-        'luminous-moss', 'snowball', 'adrenaline-orb', 'room-service', 'metronome', 'ability-shield', primaryTypeItem
-    ].filter(Boolean).filter(isItemAvailable);
-    return pool[Math.floor(Math.random() * pool.length)] || 'sitrus-berry';
+    if (weaknessTypes.length) {
+        const weakness = weaknessTypes[Math.floor(Math.random() * weaknessTypes.length)];
+        add(RESIST_BERRIES[weakness], 3);
+    }
+
+    const entries = [...candidates.entries()].map(([value, weight]) => ({ value, weight }));
+    return weightedPick(entries) || (isItemAvailable('sitrus-berry') ? 'sitrus-berry' : Object.keys(ITEM_DEFS).find(isItemAvailable) || null);
 }
 
 async function loadItemLocalization(slug) {
@@ -1346,7 +1567,7 @@ async function buildPokemon(apiData) {
     rawAbilityEntries.filter(entry => !isAbilityOperational(entry.ability.name)).forEach(entry => State.audit.unsupportedAbilities.add(entry.ability.name));
     const [species, moves] = await Promise.all([
         fetchAPI(apiData.species.url, State.cache.species, 1, 10000),
-        selectOperationalMoves(apiData.moves),
+        selectOperationalMoves(apiData.moves, { types: apiData.types.map(entry => entry.type.name), baseStats }),
         cacheAbilityLocalization(baseAbilityEntry)
     ]);
     // フォルム名が本当に必要な個体だけ追加取得する。通常個体では1リクエスト削減。
@@ -1993,7 +2214,7 @@ function isTargetingOpponent(move) {
 function isDirectPokemonTarget(move) {
     return !['user', 'users-field', 'opponents-field', 'user-and-allies', 'all-allies', 'entire-field', 'all-pokemon'].includes(move.target);
 }
-function canAct(pk) {
+function canAct(pk, selectedMove = null) {
     if (pk.volatile.flinch) {
         pk.volatile.flinch = false;
         if (hasAbility(pk, 'inner-focus')) {
@@ -2008,6 +2229,8 @@ function canAct(pk) {
         if (pk.statusTurns <= 0) {
             pk.status = 'none';
             logMsg(`💤 ${escapeHTML(pk.name)} は目を覚ました！`);
+        } else if (['snore', 'sleep-talk'].includes(selectedMove?.origName)) {
+            logMsg(`💤 ${escapeHTML(pk.name)} は眠りながら行動する！`);
         } else {
             logMsg(`💤 ${escapeHTML(pk.name)} はぐうぐう眠っている…`);
             return false;
@@ -2238,7 +2461,8 @@ function applyFlingEffect(target, flingData) {
 async function performAction(atk, def, move, isPlayer) {
     if (atk.stats.hp <= 0 || def.stats.hp <= 0) return;
     const reflectedAction = Boolean(move.reflected);
-    if (!reflectedAction && !canAct(atk)) {
+    const calledBySleepTalk = Boolean(move.calledBySleepTalk);
+    if (!reflectedAction && !calledBySleepTalk && !canAct(atk, move)) {
         if (PROTECT_MOVES.has(move.origName)) atk.volatile.protectChain = 0;
         if (move.isChargeSetup || move.isChargeRelease) clearChargeState(atk);
         updateBattleUI(); await sleep(500); return;
@@ -2256,7 +2480,7 @@ async function performAction(atk, def, move, isPlayer) {
     if (DAMP_BLOCKED_MOVES.has(move.origName) && (hasAbility(atk, 'damp') || hasEffectiveAbility(def, 'damp', atk))) {
         logMsg('💧 しめりけで爆発を防いだ！'); return;
     }
-    if (!reflectedAction) decrementPP(move, def);
+    if (!reflectedAction && !calledBySleepTalk) decrementPP(move, def);
     if (!reflectedAction && ['protean', 'libero'].includes(atk.ability) && !atk.abilityState.proteanUsed) {
         const changedType = effectiveMoveType(atk, move);
         atk.types = [changedType]; atk.abilityState.proteanUsed = true;
@@ -2264,8 +2488,33 @@ async function performAction(atk, def, move, isPlayer) {
     }
     logMsg(`▶️ <b>${escapeHTML(atk.name)}</b> の <b>${escapeHTML(move.name)}</b>！`);
     atk.lastMove = move.origName;
-    if (!reflectedAction && CHOICE_ITEMS.has(atk.item) && !atk.lockedMove) atk.lockedMove = move.origName;
+    if (!reflectedAction && !calledBySleepTalk && CHOICE_ITEMS.has(atk.item) && !atk.lockedMove) atk.lockedMove = move.origName;
     await sleep(350);
+
+    if (move.origName === 'snore' && atk.status !== 'slp') {
+        logMsg('❌ しかし、起きているため使えなかった！');
+        return;
+    }
+    if (move.origName === 'sleep-talk') {
+        if (atk.status !== 'slp') {
+            logMsg('❌ しかし、起きているため使えなかった！');
+            return;
+        }
+        const callable = atk.moves.filter(candidate =>
+            candidate.origName !== 'sleep-talk' &&
+            candidate.pp > 0 &&
+            !INVULNERABLE_TWO_TURN_MOVES.has(candidate.origName) &&
+            !['rest', 'focus-punch', 'beak-blast', 'shell-trap'].includes(candidate.origName)
+        );
+        if (!callable.length) {
+            logMsg('❌ ねごとで出せる技がなかった！');
+            return;
+        }
+        const called = { ...callable[Math.floor(Math.random() * callable.length)], calledBySleepTalk: true, pp: Infinity };
+        logMsg(`💬 ねごとで ${escapeHTML(called.name)} が選ばれた！`);
+        await performAction(atk, def, called, isPlayer);
+        return;
+    }
 
     if (move.isChargeSetup) {
         atk.volatile.chargingMove = move.sourceMove || move;
@@ -2416,7 +2665,7 @@ function checkAccuracy(atk, def, move) {
     const evasionStage = hasAbility(atk, 'keen-eye') && def.modifiers.evasion > 0 ? 0 : def.modifiers.evasion;
     let accuracy = move.accuracy * accuracyMultiplier(atk.modifiers.accuracy) / accuracyMultiplier(evasionStage);
     if (hasItem(atk, 'wide-lens')) accuracy *= 1.1;
-    if (hasItem(atk, 'zoom-lens')) accuracy *= 1.2;
+    if (hasItem(atk, 'zoom-lens') && atk.abilityState?.movingLast) accuracy *= 1.2;
     if (hasAbility(atk, 'compound-eyes')) accuracy *= 1.3;
     if (hasAbility(atk, 'hustle') && move.category === 'physical') accuracy *= 0.8;
     if (hasItem(def, 'bright-powder')) accuracy *= 0.9;
@@ -3348,6 +3597,7 @@ function showSwapScreen() {
 
 window.addEventListener('load', () => {
     applyTheme(getSelectedThemeKey());
+    renderImplementedItemList();
     document.getElementById('max-streak').textContent = State.maxStreak;
     document.getElementById('btn-options').onclick = openOptions;
     document.getElementById('btn-close-options').onclick = closeOptions;

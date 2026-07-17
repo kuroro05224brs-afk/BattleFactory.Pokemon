@@ -62,8 +62,8 @@
         .pokemon-img { object-fit: contain; transition: 0.2s; }
         .hp-bar-bg { background: #555; height: 8px; border-radius: 4px; margin: 5px 0; border: 1px solid #2c3e50; overflow: hidden; }
         .hp-bar { background: #2ecc71; height: 100%; transition: width 0.3s ease; }
-        .status-ailment { font-size: 11px; font-weight: bold; color: white; padding: 2px 4px; border-radius: 3px; margin-left: 5px; }
-        .brn { background: #e67e22; } .par { background: #f1c40f; color: black; } .psn { background: #9b59b6; } .none { display: none; }
+        .status-ailment { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; font-size: 10px; line-height: 1; font-weight: 900; color: white; padding: 4px 6px; border-radius: 999px; margin-left: 6px; vertical-align: middle; border: 1px solid rgba(255,255,255,.75); box-shadow: 0 1px 3px rgba(0,0,0,.25); letter-spacing: .02em; }
+        .brn { background: #e67e22; } .par { background: #f1c40f; color: #2c2c2c; } .psn { background: #9b59b6; } .none { display: none; }
         .stat-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
         .badge { font-size: 10px; padding: 2px 4px; border-radius: 3px; background: #34495e; color: white; font-weight: bold;}
         .badge.up { background: #e74c3c; } .badge.down { background: #3498db; }
@@ -552,7 +552,7 @@ const ITEM_DEFS = {
     'deep-sea-tooth': { ja: 'しんかいのキバ' }, 'deep-sea-scale': { ja: 'しんかいのウロコ' }, 'soul-dew': { ja: 'こころのしずく' },
     'adamant-orb': { ja: 'こんごうだま' }, 'lustrous-orb': { ja: 'しらたま' }, 'griseous-orb': { ja: 'はっきんだま' },
     'adamant-crystal': { ja: 'だいこんごうだま' }, 'lustrous-globe': { ja: 'だいしらたま' }, 'griseous-core': { ja: 'だいはっきんだま' },
-    'rusted-sword': { ja: 'くちたけん' }, 'rusted-shield': { ja: 'くちたたて' }, 'red-orb': { ja: 'べにいろのたま' }, 'blue-orb': { ja: 'あいいろのたま' },
+    'rusted-sword': { ja: 'ふるびたけん' }, 'rusted-shield': { ja: 'ふるびたたて' }, 'red-orb': { ja: 'べにいろのたま' }, 'blue-orb': { ja: 'あいいろのたま' },
     'red-card': { ja: 'レッドカード' }, 'eject-button': { ja: 'だっしゅつボタン' }, 'eject-pack': { ja: 'だっしゅつパック' },
     'mirror-herb': { ja: 'ものまねハーブ' }, 'sticky-barb': { ja: 'くっつきバリ' }, 'ring-target': { ja: 'ねらいのまと' }, 'float-stone': { ja: 'かるいし' },
     'full-incense': { ja: 'まんぷくおこう' }, 'lax-incense': { ja: 'のんきのおこう' }, 'sea-incense': { ja: 'うしおのおこう' },
@@ -1856,7 +1856,16 @@ function addItemCandidate(candidateMap, slug, weight) {
     if (!slug || !isItemAvailable(slug) || weight <= 0) return;
     candidateMap.set(slug, (candidateMap.get(slug) || 0) + weight);
 }
+function forcedSpeciesItem(pokemon) {
+    if (speciesIs(pokemon, 'zacian')) return 'rusted-sword';
+    if (speciesIs(pokemon, 'zamazenta')) return 'rusted-shield';
+    return null;
+}
 function chooseItem(pokemon) {
+    // ザシアン／ザマゼンタは専用道具で完全固定。
+    // メガストーン抽選や通常の重み付き抽選より先に確定させる。
+    const forcedItem = forcedSpeciesItem(pokemon);
+    if (forcedItem) return forcedItem;
     const megaOptions = pokemon.megaOptions || [];
     if (megaOptions.length && Math.random() < MEGA_STONE_RATE) {
         return megaOptions[Math.floor(Math.random() * megaOptions.length)].stone;
@@ -1911,8 +1920,6 @@ function chooseItem(pokemon) {
     if (speciesIs(pokemon, 'dialga')) { add('adamant-orb', 6); add('adamant-crystal', 5); }
     if (speciesIs(pokemon, 'palkia')) { add('lustrous-orb', 6); add('lustrous-globe', 5); }
     if (speciesIs(pokemon, 'giratina')) { add('griseous-orb', 6); add('griseous-core', 5); }
-    if (speciesIs(pokemon, 'zacian')) add('rusted-sword', 10);
-    if (speciesIs(pokemon, 'zamazenta')) add('rusted-shield', 10);
     if (speciesIs(pokemon, 'groudon')) add('red-orb', 8);
     if (speciesIs(pokemon, 'kyogre')) add('blue-orb', 8);
     if (speciesIs(pokemon, 'ogerpon')) { add('wellspring-mask', 4); add('hearthflame-mask', 4); add('cornerstone-mask', 4); }
@@ -2072,6 +2079,9 @@ async function buildPokemon(apiData) {
         }
     }
     if (!isItemAvailable(pokemon.item)) pokemon.item = isItemAvailable('sitrus-berry') ? 'sitrus-berry' : Object.keys(ITEM_DEFS).find(isItemAvailable) || null;
+    // 再抽選・フォールバックが走っても専用道具固定を破らない最終ガード。
+    const forcedItem = forcedSpeciesItem(pokemon);
+    if (forcedItem) pokemon.item = forcedItem;
     pokemon.origItem = pokemon.item;
     await applyHeldFormItem(pokemon);
     if (isMegaStone(pokemon.item)) await prepareMegaProfile(pokemon);
@@ -2181,6 +2191,15 @@ async function startDraftPhase() {
 }
 
 function statusClass(status) { return status === 'none' ? 'none' : status; }
+function renderStatusIndicator(pokemon) {
+    if (!pokemon || pokemon.status === 'none') return '';
+    // ぜったいねむりは「眠っているものとして扱う」特性であり、通常のねむり状態ではない。
+    // 万一外部処理で slp が設定されても、ユーザー指定によりインジケーターは表示しない。
+    if (hasAbility(pokemon, 'comatose')) return '';
+    const label = STATUS_NAMES[pokemon.status] || '';
+    if (!label) return '';
+    return `<span class="status-ailment ${statusClass(pokemon.status)}" aria-label="状態異常: ${escapeHTML(label)}">${escapeHTML(label)}</span>`;
+}
 function renderStatBadges(pk) {
     return Object.entries(pk.modifiers)
         .filter(([, value]) => value !== 0)
@@ -2242,7 +2261,7 @@ function updateBattleUI() {
     enemyImg.classList.remove('faint', 'hit');
 
     document.getElementById('player-status').innerHTML = `
-        <div class="status-name">${escapeHTML(player.name)} <span class="status-ailment ${statusClass(player.status)}">${escapeHTML(STATUS_NAMES[player.status])}</span></div>
+        <div class="status-name">${escapeHTML(player.name)} ${renderStatusIndicator(player)}</div>
         <div class="hp-bar-bg"><div class="hp-bar" style="width:${playerPct}%;background:${color(playerPct)}"></div></div>
         <div class="status-meta">体力:${Math.max(0, player.stats.hp)}/${player.stats.maxHp} | 🎒${escapeHTML(itemName(player.item))}</div>
         <div class="status-meta">特性:${escapeHTML(abilityName(player.ability))}${player.isMega ? '<span class="mega-tag">メガ</span>' : ''}</div>
@@ -2252,7 +2271,7 @@ function updateBattleUI() {
         ${player.volatile.mustRecharge ? `<div class="volatile-note">反動で次のターンは行動不能</div>` : ''}
         <div class="stat-badges">${renderStatBadges(player)}</div>`;
     document.getElementById('enemy-status').innerHTML = `
-        <div class="status-name">${escapeHTML(enemy.name)} <span class="status-ailment ${statusClass(enemy.status)}">${escapeHTML(STATUS_NAMES[enemy.status])}</span></div>
+        <div class="status-name">${escapeHTML(enemy.name)} ${renderStatusIndicator(enemy)}</div>
         <div class="hp-bar-bg"><div class="hp-bar" style="width:${enemyPct}%;background:${color(enemyPct)}"></div></div>
         <div class="status-meta">体力:${enemyPct}% | 🎒${enemy.item ? 'あり' : 'なし'}</div>
         <div class="status-meta">特性:${escapeHTML(abilityName(enemy.ability))}${enemy.isMega ? '<span class="mega-tag">メガ</span>' : ''}</div>

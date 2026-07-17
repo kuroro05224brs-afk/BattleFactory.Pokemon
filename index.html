@@ -133,9 +133,66 @@
         .slp { background: #7f8c8d; } .frz { background: #74b9ff; color: #17324d; } .tox { background: #6c3483; }
         .win-text { color: #f1c40f; font-size: 16px; }
         .lose-text { color: #e74c3c; font-size: 16px; }
-        .title-block { margin-bottom: 14px; display: grid; gap: 4px; justify-items: center; }
-        .game-logo { font-size: clamp(34px, 7vw, 58px); font-weight: 900; letter-spacing: 2px; line-height: .95; text-transform: uppercase; font-style: italic; color: transparent; background: var(--logo-fill); -webkit-background-clip: text; background-clip: text; -webkit-text-stroke: 4px var(--logo-stroke); text-shadow: 0 4px 0 rgba(255,255,255,.55), 0 8px 18px var(--logo-glow); filter: drop-shadow(0 4px 10px rgba(0,0,0,.15)); }
-        .game-subtitle { font-size: clamp(16px, 2.5vw, 22px); font-weight: 800; letter-spacing: 3px; color: var(--logo-sub); }
+        .title-block { margin-bottom: 14px; display: grid; gap: 7px; justify-items: center; }
+        .game-logo {
+            position: relative;
+            display: inline-block;
+            padding: 10px 18px 12px;
+            font-family: 'Courier New', 'MS Gothic', monospace;
+            font-size: clamp(32px, 7vw, 56px);
+            font-weight: 900;
+            letter-spacing: .07em;
+            line-height: 1;
+            text-transform: uppercase;
+            font-style: normal;
+            color: #ffe05a;
+            background: rgba(255,255,255,.72);
+            border: 4px solid var(--logo-stroke);
+            border-radius: 0;
+            clip-path: polygon(8px 0, calc(100% - 8px) 0, calc(100% - 8px) 4px, 100% 4px, 100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px), calc(100% - 4px) 100%, 8px 100%, 8px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 8px), 0 calc(100% - 8px), 0 8px, 4px 8px, 4px 4px, 8px 4px);
+            text-shadow:
+                3px 0 0 var(--logo-stroke), -3px 0 0 var(--logo-stroke),
+                0 3px 0 var(--logo-stroke), 0 -3px 0 var(--logo-stroke),
+                3px 3px 0 var(--logo-stroke), -3px 3px 0 var(--logo-stroke),
+                6px 6px 0 rgba(0,0,0,.22);
+            box-shadow:
+                0 0 0 4px rgba(255,255,255,.9) inset,
+                0 0 0 8px var(--logo-glow),
+                8px 8px 0 rgba(0,0,0,.16);
+            image-rendering: pixelated;
+            -webkit-font-smoothing: none;
+            font-smooth: never;
+        }
+        .game-logo::before, .game-logo::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            box-shadow: 8px 0 0 var(--accent-2), 0 8px 0 var(--accent-2);
+        }
+        .game-logo::before { left: 7px; top: 7px; }
+        .game-logo::after { right: 15px; bottom: 15px; transform: rotate(180deg); }
+        .game-subtitle {
+            padding: 5px 11px;
+            font-family: 'Courier New', 'MS Gothic', monospace;
+            font-size: clamp(14px, 2.5vw, 20px);
+            font-weight: 900;
+            letter-spacing: .16em;
+            color: var(--logo-sub);
+            border-left: 6px solid var(--accent);
+            border-right: 6px solid var(--accent);
+            background: var(--theme-chip-bg);
+            box-shadow: 4px 4px 0 rgba(0,0,0,.12);
+        }
+        .stance-flash { animation: stancePixelFlash .42s steps(4, end); }
+        @keyframes stancePixelFlash {
+            0% { filter: brightness(1); transform: scale(1); }
+            25% { filter: brightness(2.2) contrast(1.5); transform: scale(1.08); }
+            50% { filter: brightness(.7) contrast(2); transform: scale(.96); }
+            75% { filter: brightness(1.7); transform: scale(1.04); }
+            100% { filter: brightness(1); transform: scale(1); }
+        }
         .title-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; font-size: 14px; color: #555; }
         .theme-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: var(--theme-chip-bg); color: var(--primary); font-weight: 700; }
         .theme-badge::before { content: '◆'; color: var(--accent); font-size: 11px; }
@@ -166,7 +223,7 @@
                 box-shadow: none;
             }
             .title-block { padding-top: 29px; margin-bottom: 10px; gap: 3px; }
-            .game-logo { font-size: clamp(34px, 12vw, 48px); -webkit-text-stroke-width: 3px; }
+            .game-logo { font-size: clamp(30px, 11vw, 44px); padding: 9px 13px 11px; }
             .game-subtitle { font-size: clamp(14px, 5vw, 19px); letter-spacing: 2px; }
             .title-meta { gap: 6px; font-size: 12px; }
             .options-button {
@@ -286,7 +343,7 @@
             body { padding: 0; }
             #game-container { min-height: 100dvh; padding: 8px 12px; }
             .title-block { padding-top: 0; margin-bottom: 6px; grid-template-columns: auto auto; align-items: center; justify-content: center; column-gap: 14px; }
-            .game-logo { font-size: 30px; -webkit-text-stroke-width: 2px; }
+            .game-logo { font-size: 28px; padding: 7px 11px 9px; }
             .game-subtitle { font-size: 13px; }
             .title-meta { grid-column: 1 / -1; }
             .api-audit { max-height: 75px; }
@@ -624,12 +681,12 @@ const ABILITY_NAMES = {
     'dark-aura':'ダークオーラ','fairy-aura':'フェアリーオーラ','aura-break':'オーラブレイク',
     'protosynthesis':'こだいかっせい','quark-drive':'クォークチャージ',
     'intrepid-sword':'ふとうのけん','dauntless-shield':'ふくつのたて','desolate-land':'おわりのだいち','primordial-sea':'はじまりのうみ',
-    'multitype':'マルチタイプ','rks-system':'ARシステム'
+    'multitype':'マルチタイプ','rks-system':'ARシステム','stance-change':'バトルスイッチ'
 };
 
 // この1対1エンジンで効果を持つ特性。未登録特性は監査に表示し、効果があると誤認させない。
 const IMPLEMENTED_ABILITIES = new Set(Object.keys(ABILITY_NAMES));
-const ABILITY_REVIEW_VERSION = '2026-07-17-v4';
+const ABILITY_REVIEW_VERSION = '2026-07-17-v5-stance-change';
 const SINGLE_BATTLE_NO_EFFECT_ABILITIES = new Set([
     'run-away','illuminate','pickup','honey-gather','ball-fetch','plus','minus','friend-guard','healer','telepathy','symbiosis',
     'battery','power-spot','steely-spirit','commander','costar','hospitality','receiver','power-of-alchemy','curious-medicine'
@@ -749,7 +806,7 @@ const SPECIAL_STATUS_MOVES = new Set([
     'reflect', 'light-screen', 'aurora-veil', 'stealth-rock', 'spikes', 'toxic-spikes', 'sticky-web', 'defog', 'court-change',
     'rain-dance', 'sunny-day', 'sandstorm', 'hail', 'snowscape', 'electric-terrain', 'grassy-terrain', 'misty-terrain', 'psychic-terrain',
     'trick-room', 'tailwind', 'leech-seed', 'substitute', 'belly-drum', 'haze', 'rest', 'heal-bell', 'aromatherapy', 'refresh',
-    'psych-up', 'topsy-turvy', 'perish-song', 'taunt', 'sleep-talk', ...INTENTIONAL_NO_EFFECT_MOVES
+    'psych-up', 'topsy-turvy', 'perish-song', 'taunt', 'attract', 'sleep-talk', ...INTENTIONAL_NO_EFFECT_MOVES
 ]);
 const POST_DAMAGE_SPECIAL_MOVES = new Set(['rapid-spin', 'mortal-spin', 'clear-smog', 'brick-break', 'psychic-fangs', 'raging-bull', 'ice-spinner', 'steel-roller', 'knock-off', 'thief', 'covet', 'fell-stinger', 'salt-cure']);
 
@@ -831,6 +888,13 @@ const State = {
     megaUsed: { player: false, enemy: false },
     catalog: { pokemon: [], pokemonTotal: 0, moveTotal: 0, itemTotal: 0, activeHeldItems: [], excludedMega: 0, megaResources: {}, fallback: false },
     audit: { unsupportedHeldItems: [], unsupportedAbilities: new Set(), sampledRejectedMoves: new Set(), apiErrors: [], detailedComplete: false, detailedLoading: false },
+    ai: {
+        enemySwitchCooldown: 0,
+        enemyLastAction: 'move',
+        enemyLastSwitchTurn: -99,
+        enemyVoluntarySwitches: 0,
+        enemyLastDecision: null
+    },
     cache: { pokemon: {}, species: {}, forms: {}, moves: {}, items: {}, abilities: {}, catalog: {} }
 };
 
@@ -869,6 +933,13 @@ function getMultiplier(atkType, defTypes) {
 function getJaName(names, fallback) {
     const ja = names?.find(entry => entry.language.name === 'ja-Hrkt') || names?.find(entry => entry.language.name === 'ja');
     return ja?.name || fallback;
+}
+function rollPokemonGender(species) {
+    const rate = Number(species?.gender_rate);
+    if (!Number.isFinite(rate) || rate < 0) return 'genderless';
+    if (rate <= 0) return 'male';
+    if (rate >= 8) return 'female';
+    return Math.random() < rate / 8 ? 'female' : 'male';
 }
 const REGIONAL_FORM_PREFIXES = { alola:'アローラ', galar:'ガラル', hisui:'ヒスイ', paldea:'パルデア' };
 function regionalFormInfo(apiName) {
@@ -963,7 +1034,7 @@ async function cacheAbilityLocalization(abilityRef) {
 }
 function hasAbility(pk, slug) { return pk?.ability === slug; }
 const MOLD_BREAKER_UNIGNORABLE_ABILITIES = new Set(['full-metal-body', 'prism-armor', 'shadow-shield']);
-const ABILITY_CANNOT_BE_REPLACED = new Set(['as-one-glastrier', 'as-one-spectrier', 'battle-bond', 'comatose', 'multitype', 'rks-system', 'commander']);
+const ABILITY_CANNOT_BE_REPLACED = new Set(['as-one-glastrier', 'as-one-spectrier', 'battle-bond', 'comatose', 'multitype', 'rks-system', 'commander', 'stance-change']);
 function ignoresAbilities(attacker, defender = null) {
     if (!['mold-breaker', 'teravolt', 'turboblaze'].includes(attacker?.ability)) return false;
     if (defender && hasItem(defender, 'ability-shield')) return false;
@@ -1236,6 +1307,107 @@ function calculateStatsFromBase(baseStats, pokemon) {
     }
     return result;
 }
+const AEGISLASH_STANCE_FALLBACK = Object.freeze({
+    shield: {
+        name: 'ギルガルド', apiName: 'aegislash-shield',
+        baseStats: { hp: 60, attack: 50, defense: 140, 'special-attack': 50, 'special-defense': 140, speed: 60 }
+    },
+    blade: {
+        name: 'ギルガルド（ブレードフォルム）', apiName: 'aegislash-blade',
+        baseStats: { hp: 60, attack: 140, defense: 50, 'special-attack': 140, 'special-defense': 50, speed: 60 }
+    }
+});
+
+async function prepareStanceChangeProfile(pokemon) {
+    if (!pokemon || pokemon.speciesKey !== 'aegislash' || !hasAbility(pokemon, 'stance-change')) return;
+    const [shieldData, bladeData] = await Promise.all([
+        fetchAPI(`${POKE_API}/pokemon/aegislash-shield`, State.cache.pokemon, 0, 7000),
+        fetchAPI(`${POKE_API}/pokemon/aegislash-blade`, State.cache.pokemon, 0, 7000)
+    ]);
+    const shieldStats = {};
+    const bladeStats = {};
+    shieldData?.stats?.forEach(entry => { shieldStats[entry.stat.name] = entry.base_stat; });
+    bladeData?.stats?.forEach(entry => { bladeStats[entry.stat.name] = entry.base_stat; });
+    const shieldProfile = {
+        name: AEGISLASH_STANCE_FALLBACK.shield.name,
+        apiName: shieldData?.name || AEGISLASH_STANCE_FALLBACK.shield.apiName,
+        types: shieldData?.types?.map(entry => entry.type.name) || ['steel', 'ghost'],
+        baseStats: Object.keys(shieldStats).length ? shieldStats : { ...AEGISLASH_STANCE_FALLBACK.shield.baseStats },
+        spriteF: shieldData?.sprites?.front_default || shieldData?.sprites?.other?.home?.front_default || pokemon.spriteF,
+        spriteB: shieldData?.sprites?.back_default || pokemon.spriteB,
+        weight: shieldData?.weight || pokemon.weight
+    };
+    const bladeProfile = {
+        name: AEGISLASH_STANCE_FALLBACK.blade.name,
+        apiName: bladeData?.name || AEGISLASH_STANCE_FALLBACK.blade.apiName,
+        types: bladeData?.types?.map(entry => entry.type.name) || ['steel', 'ghost'],
+        baseStats: Object.keys(bladeStats).length ? bladeStats : { ...AEGISLASH_STANCE_FALLBACK.blade.baseStats },
+        spriteF: bladeData?.sprites?.front_default || bladeData?.sprites?.other?.home?.front_default || pokemon.spriteF,
+        spriteB: bladeData?.sprites?.back_default || pokemon.spriteB,
+        weight: bladeData?.weight || pokemon.weight
+    };
+    pokemon.stanceProfile = { shield: shieldProfile, blade: bladeProfile };
+    // PokeAPIの抽選でブレードフォルム側のリソースを引いた場合でも、戦闘開始時は必ずシールドフォルムに統一する。
+    pokemon.name = shieldProfile.name;
+    pokemon.baseName = shieldProfile.name;
+    pokemon.apiName = shieldProfile.apiName;
+    pokemon.types = [...shieldProfile.types];
+    pokemon.originalTypes = [...shieldProfile.types];
+    pokemon.battleBaseTypes = [...shieldProfile.types];
+    pokemon.baseStats = { ...shieldProfile.baseStats };
+    pokemon.spriteF = shieldProfile.spriteF;
+    pokemon.spriteB = shieldProfile.spriteB;
+    pokemon.weight = shieldProfile.weight;
+    const currentHp = pokemon.stats.hp;
+    const currentMaxHp = pokemon.stats.maxHp;
+    pokemon.stats = calculateStatsFromBase(pokemon.baseStats, pokemon);
+    pokemon.stats.hp = currentHp;
+    pokemon.stats.maxHp = currentMaxHp;
+    pokemon.stanceForm = 'shield';
+}
+
+function applyStanceForm(pk, form, isPlayer = null, announce = true) {
+    const profile = pk?.stanceProfile?.[form];
+    if (!profile || pk.stanceForm === form || !hasAbility(pk, 'stance-change')) return false;
+    const currentHp = pk.stats.hp;
+    const currentMaxHp = pk.stats.maxHp;
+    pk.name = profile.name;
+    pk.apiName = profile.apiName;
+    pk.types = [...profile.types];
+    pk.baseStats = { ...profile.baseStats };
+    pk.spriteF = profile.spriteF || pk.spriteF;
+    pk.spriteB = profile.spriteB || pk.spriteB;
+    pk.weight = profile.weight || pk.weight;
+    pk.stats = calculateStatsFromBase(pk.baseStats, pk);
+    pk.stats.hp = currentHp;
+    pk.stats.maxHp = currentMaxHp;
+    pk.stanceForm = form;
+    if (announce) {
+        logMsg(form === 'blade'
+            ? `⚔️ ${escapeHTML(pk.name)} は バトルスイッチ でブレードフォルムになった！`
+            : `🛡️ ${escapeHTML(pk.name)} は バトルスイッチ でシールドフォルムに戻った！`);
+    }
+    const resolvedIsPlayer = isPlayer ?? (State.playerTeam?.[State.activePlayerIdx] === pk);
+    const image = document.getElementById(resolvedIsPlayer ? 'player-img' : 'enemy-img');
+    image?.classList.remove('stance-flash');
+    void image?.offsetWidth;
+    image?.classList.add('stance-flash');
+    updateBattleUI();
+    return true;
+}
+
+function applyStanceChangeBeforeMove(pk, move, isPlayer, calledBySleepTalk = false) {
+    if (!pk?.stanceProfile || !hasAbility(pk, 'stance-change') || calledBySleepTalk || !move) return false;
+    if (move.origName === 'kings-shield') return applyStanceForm(pk, 'shield', isPlayer, true);
+    if (isDamagingMove(move)) return applyStanceForm(pk, 'blade', isPlayer, true);
+    return false;
+}
+
+function revertStanceChange(pk) {
+    if (!pk?.stanceProfile) return;
+    applyStanceForm(pk, 'shield', null, false);
+}
+
 function fallbackMegaBaseStats(pokemon, definition) {
     const boosts = MEGA_ROLE_BOOSTS[definition.role] || MEGA_ROLE_BOOSTS.mixed;
     const result = { ...pokemon.baseStats };
@@ -1754,6 +1926,7 @@ async function buildPokemon(apiData) {
     const baseAbility = baseAbilityEntry?.name || null;
     const pokemon = {
         id: apiData.id, apiName: apiData.name, speciesKey: species?.name || apiData.species?.name || apiData.name, name: baseName, baseName,
+        gender: rollPokemonGender(species),
         regionalForm: regionalFormInfo(apiData.name)?.region || null, canEvolve: false, blockEviolite: false,
         bst: Object.values(baseStats).reduce((sum, value) => sum + Number(value || 0), 0), heldForm: null,
         battleBaseTypes: apiData.types.map(entry => entry.type.name),
@@ -1765,10 +1938,12 @@ async function buildPokemon(apiData) {
         modifiers: { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 },
         moves, item: null, origItem: null, status: 'none', statusTurns: 0, toxicCounter: 0, lockedMove: null, lastMove: null,
         lastDamageTaken: null, turnsActive: 0, megaOptions: [], megaProfile: null, megaPending: false, isMega: false, baseSnapshot: null,
+        stanceProfile: null, stanceForm: null,
         abilityState: { proteanUsed: false, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false, intrepidUsed: false, dauntlessUsed: false },
         itemState: { metronomeMove: null, metronomeCount: 0 },
-        volatile: { flinch: false, confused: 0, taunt: 0, trapped: 0, trappedBy: null, seeded: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null }
+        volatile: { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, seeded: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null }
     };
+    await prepareStanceChangeProfile(pokemon);
     pokemon.megaOptions = getMegaOptions(pokemon);
     pokemon.item = chooseItem(pokemon);
     // しんかのきせきが実際に選ばれた場合だけ進化チェーンを確認する。
@@ -1841,6 +2016,7 @@ function createCardDOM(pokemon, onClick) {
 
 function resetPokemonForNewBattle(pk) {
     revertMegaEvolution(pk);
+    revertStanceChange(pk);
     pk.stats.hp = pk.stats.maxHp;
     pk.status = 'none'; pk.statusTurns = 0; pk.toxicCounter = 0; pk.lockedMove = null; pk.lastMove = null; pk.lastDamageTaken = null; pk.turnsActive = 0;
     pk.item = pk.origItem;
@@ -1849,7 +2025,7 @@ function resetPokemonForNewBattle(pk) {
     pk.modifiers = { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 };
     pk.abilityState = { proteanUsed: false, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false };
     pk.itemState = { metronomeMove: null, metronomeCount: 0 };
-    pk.volatile = { flinch: false, confused: 0, taunt: 0, trapped: 0, trappedBy: null, seeded: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null };
+    pk.volatile = { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, seeded: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null };
     pk.moves.forEach(move => { move.pp = move.maxPp; });
 }
 
@@ -1954,6 +2130,8 @@ function updateBattleUI() {
         <div class="status-meta">体力:${Math.max(0, player.stats.hp)}/${player.stats.maxHp} | 🎒${escapeHTML(itemName(player.item))}</div>
         <div class="status-meta">特性:${escapeHTML(abilityName(player.ability))}${player.isMega ? '<span class="mega-tag">メガ</span>' : ''}</div>
         ${player.volatile.substitute ? `<div class="volatile-note">みがわり体力:${player.volatile.substitute}</div>` : ''}
+        ${player.volatile.confused ? `<div class="volatile-note">混乱</div>` : ''}
+        ${player.volatile.infatuatedBy ? `<div class="volatile-note">メロメロ</div>` : ''}
         <div class="stat-badges">${renderStatBadges(player)}</div>`;
     document.getElementById('enemy-status').innerHTML = `
         <div class="status-name">${escapeHTML(enemy.name)} <span class="status-ailment ${statusClass(enemy.status)}">${escapeHTML(STATUS_NAMES[enemy.status])}</span></div>
@@ -1961,6 +2139,8 @@ function updateBattleUI() {
         <div class="status-meta">体力:${enemyPct}% | 🎒${enemy.item ? 'あり' : 'なし'}</div>
         <div class="status-meta">特性:${escapeHTML(abilityName(enemy.ability))}${enemy.isMega ? '<span class="mega-tag">メガ</span>' : ''}</div>
         ${enemy.volatile.substitute ? `<div class="volatile-note">みがわり</div>` : ''}
+        ${enemy.volatile.confused ? `<div class="volatile-note">混乱</div>` : ''}
+        ${enemy.volatile.infatuatedBy ? `<div class="volatile-note">メロメロ</div>` : ''}
         <div class="stat-badges">${renderStatBadges(enemy)}</div>`;
     renderFieldStatus();
 
@@ -2087,6 +2267,7 @@ async function startBattlePhase() {
     State.activeEnemyIdx = State.enemyTeam.findIndex(pk => pk.stats.hp > 0);
     State.turn = 1;
     State.megaUsed = { player: false, enemy: false };
+    State.ai = { enemySwitchCooldown: 0, enemyLastAction: 'move', enemyLastSwitchTurn: -99, enemyVoluntarySwitches: 0, enemyLastDecision: null };
     State.field = freshField();
     UI.log.innerHTML = '';
     switchScreen('battle-screen');
@@ -2376,20 +2557,367 @@ function priorityItemActivated(pk) {
     return false;
 }
 
+function expectedVariablePower(atk, def, move, isPlayer) {
+    if (!move) return 0;
+    if (move.origName === 'fling') {
+        const cached = atk?.item ? State.cache.items[`${POKE_API}/item/${atk.item}`] : null;
+        const fallback = atk?.item ? (FLING_FALLBACK_DATA[atk.item] || (isBerry(atk.item) ? { power: 10 } : { power: 30 })) : null;
+        return Number(cached?.fling_power ?? fallback?.power ?? 0);
+    }
+    if (move.power > 0) return move.power;
+    switch (move.origName) {
+        case 'gyro-ball': return clamp(Math.floor(25 * getRealSpeed(def, !isPlayer) / Math.max(1, getRealSpeed(atk, isPlayer))) + 1, 1, 150);
+        case 'electro-ball': {
+            const ratio = getRealSpeed(atk, isPlayer) / Math.max(1, getRealSpeed(def, !isPlayer));
+            return ratio >= 4 ? 150 : ratio >= 3 ? 120 : ratio >= 2 ? 80 : ratio >= 1 ? 60 : 40;
+        }
+        case 'flail': case 'reversal': {
+            const ratio = atk.stats.hp / Math.max(1, atk.stats.maxHp);
+            return ratio <= 1 / 48 ? 200 : ratio <= 1 / 5 ? 150 : ratio <= 1 / 3 ? 100 : ratio <= 0.5 ? 80 : ratio <= 0.7 ? 40 : 20;
+        }
+        case 'eruption': case 'water-spout': case 'dragon-energy': return Math.max(1, Math.floor(150 * atk.stats.hp / Math.max(1, atk.stats.maxHp)));
+        case 'facade': return atk.status !== 'none' ? 140 : 70;
+        case 'hex': return def.status !== 'none' ? 130 : 65;
+        case 'venoshock': return ['psn', 'tox'].includes(def.status) ? 130 : 65;
+        case 'brine': return def.stats.hp <= def.stats.maxHp / 2 ? 130 : 65;
+        case 'acrobatics': return atk.item ? 55 : 110;
+        case 'knock-off': return def.item && canRemoveHeldItem(def, def.item) ? 98 : 65;
+        case 'stored-power': case 'power-trip': return 20 + 20 * Object.values(atk.modifiers).filter(stage => stage > 0).reduce((sum, stage) => sum + stage, 0);
+        case 'return': case 'frustration': return 102;
+        case 'weather-ball': return effectiveWeatherName() === 'none' ? 50 : 100;
+        case 'terrain-pulse': return State.field.terrain.name === 'none' ? 50 : 100;
+        case 'magnitude': return 71;
+        case 'low-kick': case 'grass-knot': { const weight = hasItem(def, 'float-stone') ? def.weight / 2 : def.weight; return weight >= 2000 ? 120 : weight >= 1000 ? 100 : weight >= 500 ? 80 : weight >= 250 ? 60 : weight >= 100 ? 40 : 20; }
+        case 'heavy-slam': case 'heat-crash': {
+            const atkWeight = hasItem(atk, 'float-stone') ? atk.weight / 2 : atk.weight;
+            const defWeight = hasItem(def, 'float-stone') ? def.weight / 2 : def.weight;
+            const ratio = atkWeight / Math.max(1, defWeight);
+            return ratio >= 5 ? 120 : ratio >= 4 ? 100 : ratio >= 3 ? 80 : ratio >= 2 ? 60 : 40;
+        }
+        default: return move.metaCategory?.startsWith('damage') ? 60 : 0;
+    }
+}
+
+function expectedHitCount(atk, move) {
+    if (hasAbility(atk, 'parental-bond') && isDamagingMove(move) && (!move.maxHits || move.maxHits <= 1) && move.origName !== 'struggle') return 1.25;
+    if (!move.maxHits || move.maxHits <= 1) return 1;
+    if (hasAbility(atk, 'skill-link')) return move.maxHits;
+    if (move.minHits === 2 && move.maxHits === 5) return hasItem(atk, 'loaded-dice') ? 4.5 : 3.1;
+    return ((move.minHits || 1) + (move.maxHits || move.minHits || 1)) / 2;
+}
+
+function estimatedAccuracy(atk, def, move) {
+    if (!move || move.accuracy == null || hasAbility(atk, 'no-guard') || hasAbility(def, 'no-guard')) return 1;
+    const evasionStage = hasAbility(atk, 'keen-eye') && def.modifiers.evasion > 0 ? 0 : def.modifiers.evasion;
+    let accuracy = move.accuracy * accuracyMultiplier(atk.modifiers.accuracy) / accuracyMultiplier(evasionStage);
+    if (hasItem(atk, 'wide-lens')) accuracy *= 1.1;
+    if (hasAbility(atk, 'compound-eyes')) accuracy *= 1.3;
+    if (hasAbility(atk, 'hustle') && move.category === 'physical') accuracy *= 0.8;
+    if (hasItem(def, 'bright-powder') || hasItem(def, 'lax-incense')) accuracy *= 0.9;
+    const weather = effectiveWeatherName();
+    if (hasEffectiveAbility(def, 'sand-veil', atk) && weather === 'sandstorm') accuracy *= 0.8;
+    if (hasEffectiveAbility(def, 'snow-cloak', atk) && ['hail', 'snow'].includes(weather)) accuracy *= 0.8;
+    return clamp(accuracy / 100, 0.01, 1);
+}
+
+function moveWouldBeImmune(atk, def, move) {
+    if (!move || !def) return true;
+    const moveType = effectiveMoveType(atk, move);
+    if (moveType === 'ground' && hasItem(def, 'air-balloon')) return true;
+    if (!ignoresAbilities(atk, def)) {
+        if (moveHasFlag(move, 'sound') && hasAbility(def, 'soundproof')) return true;
+        if (moveHasFlag(move, 'bullet') && hasAbility(def, 'bulletproof')) return true;
+        if (moveHasFlag(move, 'powder') && hasAbility(def, 'overcoat')) return true;
+        if (moveType === 'ground' && ['levitate', 'earth-eater'].includes(def.ability)) return true;
+        if (moveType === 'fire' && ['flash-fire', 'well-baked-body'].includes(def.ability)) return true;
+        if (moveType === 'water' && ['water-absorb', 'dry-skin', 'storm-drain'].includes(def.ability)) return true;
+        if (moveType === 'electric' && ['volt-absorb', 'lightning-rod', 'motor-drive'].includes(def.ability)) return true;
+        if (moveType === 'grass' && hasAbility(def, 'sap-sipper')) return true;
+        if (moveHasFlag(move, 'wind') && hasAbility(def, 'wind-rider')) return true;
+        if (isDamagingMove(move) && hasAbility(def, 'wonder-guard') && getAttackTypeMultiplier(atk, moveType, def, move) <= 1) return true;
+    }
+    return getAttackTypeMultiplier(atk, moveType, def, move) === 0;
+}
+
+function estimateFixedDamage(atk, def, move) {
+    switch (move.origName) {
+        case 'sonic-boom': return 20;
+        case 'dragon-rage': return 40;
+        case 'night-shade': case 'seismic-toss': return 50;
+        case 'super-fang': case 'natures-madness': case 'ruination': return Math.max(1, Math.floor(def.stats.hp / 2));
+        case 'endeavor': return Math.max(0, def.stats.hp - atk.stats.hp);
+        case 'psywave': return 50;
+        case 'final-gambit': return atk.stats.hp;
+        case 'counter': return atk.lastDamageTaken?.category === 'physical' ? atk.lastDamageTaken.amount * 2 : 0;
+        case 'mirror-coat': return atk.lastDamageTaken?.category === 'special' ? atk.lastDamageTaken.amount * 2 : 0;
+        case 'metal-burst': return atk.lastDamageTaken ? Math.floor(atk.lastDamageTaken.amount * 1.5) : 0;
+        default: return null;
+    }
+}
+
+function estimateMoveDamage(atk, def, move, isPlayer = false) {
+    if (!isDamagingMove(move) || moveWouldBeImmune(atk, def, move)) return 0;
+    if (OHKO_MOVES.has(move.origName)) return def.stats.hp * estimatedAccuracy(atk, def, move);
+    const fixed = estimateFixedDamage(atk, def, move);
+    if (fixed !== null) return Math.min(def.stats.hp, Math.max(0, fixed)) * estimatedAccuracy(atk, def, move);
+    const physical = move.category === 'physical';
+    let attackStat = physical ? 'attack' : 'special-attack';
+    let defenseStat = physical ? 'defense' : 'special-defense';
+    if (move.origName === 'body-press') attackStat = 'defense';
+    if (['psyshock', 'psystrike', 'secret-sword'].includes(move.origName)) defenseStat = 'defense';
+    const source = move.origName === 'foul-play' ? def : atk;
+    let attack = source.stats[attackStat] * stageMultiplier(source.modifiers[attackStat]);
+    let defense = def.stats[defenseStat] * stageMultiplier(def.modifiers[defenseStat]);
+    if (physical && ['huge-power', 'pure-power'].includes(source.ability)) attack *= 2;
+    if (hasItem(atk, 'choice-band') && physical) attack *= 1.5;
+    if (hasItem(atk, 'choice-specs') && !physical) attack *= 1.5;
+    if (hasItem(def, 'assault-vest') && !physical) defense *= 1.5;
+    if (def.canEvolve && hasItem(def, 'eviolite')) defense *= 1.5;
+    const moveType = effectiveMoveType(atk, move);
+    const typeMod = getAttackTypeMultiplier(atk, moveType, def, move);
+    let modifier = atk.types.includes(moveType) ? (hasAbility(atk, 'adaptability') ? 2 : 1.5) : 1;
+    if (hasItem(atk, 'life-orb')) modifier *= 1.3;
+    if (hasItem(atk, 'expert-belt') && typeMod > 1) modifier *= 1.2;
+    if (TYPE_BOOST_ITEMS[atk.item] === moveType) modifier *= 1.2;
+    if (hasAbility(atk, 'technician') && expectedVariablePower(atk, def, move, isPlayer) <= 60) modifier *= 1.5;
+    if (hasAbility(atk, 'tough-claws') && moveHasFlag(move, 'contact')) modifier *= 1.3;
+    if (hasAbility(atk, 'iron-fist') && moveHasFlag(move, 'punch')) modifier *= 1.2;
+    if (hasAbility(atk, 'strong-jaw') && moveHasFlag(move, 'bite')) modifier *= 1.5;
+    if (hasAbility(atk, 'mega-launcher') && moveHasFlag(move, 'pulse')) modifier *= 1.5;
+    if (hasAbility(atk, 'sharpness') && moveHasFlag(move, 'slicing')) modifier *= 1.5;
+    if (hasAbility(atk, 'tinted-lens') && typeMod > 0 && typeMod < 1) modifier *= 2;
+    const weather = effectiveWeatherName();
+    if (weather === 'rain') modifier *= moveType === 'water' ? 1.5 : moveType === 'fire' ? 0.5 : 1;
+    if (weather === 'sun') modifier *= moveType === 'fire' ? 1.5 : moveType === 'water' ? 0.5 : 1;
+    const power = expectedVariablePower(atk, def, move, isPlayer);
+    const base = (((22 * power * Math.max(1, attack) / Math.max(1, defense)) / 50) + 2);
+    return Math.max(0, base * modifier * typeMod * 0.925 * expectedHitCount(atk, move) * estimatedAccuracy(atk, def, move));
+}
+
+function bestDamageOption(atk, def, isPlayer = false) {
+    const options = getLegalMoves(atk).filter(isDamagingMove).map(move => ({ move, damage: estimateMoveDamage(atk, def, move, isPlayer) }));
+    options.sort((a, b) => b.damage - a.damage);
+    return options[0] || { move: null, damage: 0 };
+}
+
+function estimateHazardDamage(pk, isPlayerSide) {
+    if (!pk || hasItem(pk, 'heavy-duty-boots')) return 0;
+    const side = sideField(isPlayerSide);
+    let damage = 0;
+    if (side.rocks) damage += pk.stats.maxHp / 8 * getMultiplier('rock', pk.types);
+    if (side.spikes > 0 && isGrounded(pk)) damage += pk.stats.maxHp * (side.spikes === 1 ? 1 / 8 : side.spikes === 2 ? 1 / 6 : 1 / 4);
+    return damage;
+}
+
+function candidateEntryAbilityScore(candidate, player) {
+    if (!candidate || !player) return 0;
+    let score = 0;
+    const playerMoves = getLegalMoves(player);
+    const damaging = playerMoves.filter(isDamagingMove);
+    const mainTypes = damaging.map(move => effectiveMoveType(player, move));
+    if (hasAbility(candidate, 'intimidate') && (player.stats.attack >= player.stats['special-attack'] || damaging.some(move => move.category === 'physical'))) score += 3.5;
+    if (hasAbility(candidate, 'download')) score += 1.5;
+    if (['drought','drizzle','sand-stream','snow-warning','orichalcum-pulse','hadron-engine','electric-surge','grassy-surge','psychic-surge','misty-surge'].includes(candidate.ability)) score += 2.2;
+    if (hasAbility(candidate, 'shadow-tag') || hasAbility(candidate, 'arena-trap') || hasAbility(candidate, 'magnet-pull')) score += 1.5;
+    const immunityMap = {
+        fire: ['flash-fire','well-baked-body'], water: ['water-absorb','dry-skin','storm-drain'], electric: ['volt-absorb','lightning-rod','motor-drive'],
+        grass: ['sap-sipper'], ground: ['levitate','earth-eater']
+    };
+    for (const [type, abilities] of Object.entries(immunityMap)) if (mainTypes.includes(type) && abilities.includes(candidate.ability)) score += 5;
+    if (hasAbility(candidate, 'disguise') && candidate.stats.hp === candidate.stats.maxHp) score += 2;
+    if (['multiscale','shadow-shield'].includes(candidate.ability) && candidate.stats.hp === candidate.stats.maxHp) score += 2;
+    return score;
+}
+
+function matchupScore(candidate, player, isCurrent = false) {
+    if (!candidate || candidate.stats.hp <= 0) return -999;
+    const offense = bestDamageOption(candidate, player, false);
+    const threat = bestDamageOption(player, candidate, true);
+    const offenseFraction = offense.damage / Math.max(1, player.stats.maxHp);
+    const threatFraction = threat.damage / Math.max(1, candidate.stats.maxHp);
+    const hpFraction = candidate.stats.hp / Math.max(1, candidate.stats.maxHp);
+    const faster = getRealSpeed(candidate, false) > getRealSpeed(player, true);
+    let score = offenseFraction * 18 - threatFraction * 20 + hpFraction * 5 + (faster ? 1.5 : 0);
+    score += candidateEntryAbilityScore(candidate, player);
+    score -= estimateHazardDamage(candidate, false) / Math.max(1, candidate.stats.maxHp) * 18;
+    if (offense.damage >= player.stats.hp) score += 7;
+    if (threat.damage >= candidate.stats.hp && !faster) score -= 6;
+    if (isCurrent) {
+        const positiveStages = Object.values(candidate.modifiers).filter(value => value > 0).reduce((sum, value) => sum + value, 0);
+        score += positiveStages * 1.6;
+    }
+    return score;
+}
+
+function enemyCanSwitch(enemy) {
+    if (!enemy || enemy.stats.hp <= 0 || enemy.volatile.chargingMove) return false;
+    if (State.ai.enemySwitchCooldown > 0 || State.ai.enemyLastSwitchTurn === State.turn - 1 || enemy.turnsActive < 1) return false;
+    if (enemy.volatile.trapped > 0) return false;
+    const player = State.playerTeam[State.activePlayerIdx];
+    const ghostCanEscape = enemy.types.includes('ghost');
+    if (!hasItem(enemy, 'shed-shell') && player?.stats.hp > 0 && !ghostCanEscape) {
+        if ((hasAbility(player, 'shadow-tag') && !hasAbility(enemy, 'shadow-tag')) || (hasAbility(player, 'arena-trap') && isGrounded(enemy)) || (hasAbility(player, 'magnet-pull') && enemy.types.includes('steel'))) return false;
+    }
+    return State.enemyTeam.some((pk, index) => index !== State.activeEnemyIdx && pk.stats.hp > 0);
+}
+
+function evaluateEnemySwitch(enemy, player) {
+    if (!enemyCanSwitch(enemy)) return null;
+    const currentScore = matchupScore(enemy, player, true);
+    const currentBest = bestDamageOption(enemy, player, false);
+    const incomingThreat = bestDamageOption(player, enemy, true);
+    let urgency = 0;
+    const reasons = [];
+    const hpFraction = enemy.stats.hp / Math.max(1, enemy.stats.maxHp);
+    if (currentBest.damage <= player.stats.maxHp * 0.12 && incomingThreat.damage >= enemy.stats.maxHp * 0.35) { urgency += 5; reasons.push('有効打が乏しい'); }
+    if (incomingThreat.damage >= enemy.stats.hp && getRealSpeed(player, true) >= getRealSpeed(enemy, false)) { urgency += 6; reasons.push('倒される危険が高い'); }
+    if (enemy.volatile.confused > 0) { urgency += hpFraction < 0.45 ? 4.5 : 2.2; reasons.push('混乱を解除したい'); }
+    if (enemy.volatile.infatuatedBy) { urgency += hpFraction < 0.55 ? 4.5 : 2.5; reasons.push('メロメロを解除したい'); }
+    if (enemy.volatile.seeded) { urgency += 2.8; reasons.push('やどりぎを解除したい'); }
+    if (enemy.volatile.perish > 0) { urgency += enemy.volatile.perish <= 1 ? 20 : enemy.volatile.perish === 2 ? 8 : 2; reasons.push('ほろびのカウントを解除したい'); }
+    if (hasAbility(enemy, 'natural-cure') && enemy.status !== 'none') { urgency += hpFraction < 0.55 ? 5 : 3; reasons.push('しぜんかいふくを活かしたい'); }
+    if (hasAbility(enemy, 'regenerator') && enemy.stats.hp < enemy.stats.maxHp * 0.72) { urgency += (1 - hpFraction) * 7; reasons.push('さいせいりょくを活かしたい'); }
+    const negativeStages = Object.values(enemy.modifiers).filter(value => value < 0).reduce((sum, value) => sum + Math.abs(value), 0);
+    if (negativeStages >= 3) { urgency += Math.min(6, negativeStages * 1.2); reasons.push('能力低下をリセットしたい'); }
+    if (currentBest.damage >= player.stats.hp) urgency -= 8;
+    const positiveStages = Object.values(enemy.modifiers).filter(value => value > 0).reduce((sum, value) => sum + value, 0);
+    urgency -= positiveStages * 1.5;
+
+    const candidates = State.enemyTeam
+        .map((pk, index) => ({ pk, index, score: matchupScore(pk, player, false) }))
+        .filter(entry => entry.index !== State.activeEnemyIdx && entry.pk.stats.hp > 0 && estimateHazardDamage(entry.pk, false) < entry.pk.stats.hp)
+        .sort((a, b) => b.score - a.score);
+    const best = candidates[0];
+    if (!best) return null;
+    const improvement = best.score - currentScore + urgency;
+    if (improvement < 4.5) return null;
+    const switchChance = improvement >= 13 ? 0.92 : improvement >= 9 ? 0.78 : improvement >= 6.5 ? 0.58 : 0.36;
+    if (Math.random() > switchChance) return null;
+    return { type: 'switch', targetIndex: best.index, score: improvement, reason: reasons[0] || '対面を立て直す' };
+}
+
+function statusMoveScore(enemy, player, move, threatDamage) {
+    let score = 0;
+    const hpFraction = enemy.stats.hp / Math.max(1, enemy.stats.maxHp);
+    const playerHpFraction = player.stats.hp / Math.max(1, player.stats.maxHp);
+    const own = State.field.enemy;
+    const foe = State.field.player;
+    if (move.healing > 0 || ['recover','roost','slack-off','soft-boiled','milk-drink','shore-up','synthesis','moonlight','morning-sun','rest'].includes(move.origName)) {
+        score += hpFraction < 0.3 ? 14 : hpFraction < 0.55 ? 9 : hpFraction < 0.75 ? 4 : -10;
+        if (threatDamage >= enemy.stats.hp && !PROTECT_MOVES.has(move.origName)) score -= 5;
+    }
+    if (PROTECT_MOVES.has(move.origName)) {
+        score += enemy.status === 'tox' || enemy.volatile.seeded ? -2 : 0;
+        score += player.status === 'tox' || player.status === 'psn' || player.status === 'brn' || player.volatile.seeded || player.volatile.perish > 0 ? 5 : 0;
+        score += threatDamage >= enemy.stats.hp * 0.45 ? 3 : -1;
+        score -= (enemy.volatile.protectChain || 0) * 5;
+        if (hasAbility(enemy, 'stance-change') && move.origName === 'kings-shield' && enemy.stanceForm === 'blade') score += 5;
+    }
+    if (['stealth-rock','spikes','toxic-spikes','sticky-web'].includes(move.origName)) {
+        const playerBench = State.playerTeam.filter(pk => pk.stats.hp > 0).length - 1;
+        score += playerBench * 1.8 + (State.turn <= 4 ? 3 : 0);
+        if (move.origName === 'stealth-rock' && foe.rocks) score -= 20;
+        if (move.origName === 'spikes' && foe.spikes >= 3) score -= 20;
+        if (move.origName === 'toxic-spikes' && foe.toxicSpikes >= 2) score -= 20;
+        if (move.origName === 'sticky-web' && foe.stickyWeb) score -= 20;
+    }
+    if (['defog','rapid-spin','mortal-spin'].includes(move.origName)) {
+        const hazardWeight = (own.rocks ? 3 : 0) + own.spikes * 2 + own.toxicSpikes * 2 + (own.stickyWeb ? 2 : 0);
+        score += hazardWeight * 2 - (hazardWeight === 0 ? 8 : 0);
+    }
+    if (['toxic','poison-powder','poison-gas','toxic-thread'].includes(move.origName)) score += player.status === 'none' && !player.types.some(type => ['poison','steel'].includes(type)) ? 7 + playerHpFraction * 2 : -12;
+    if (move.origName === 'will-o-wisp') score += player.status === 'none' && !player.types.includes('fire') ? (player.stats.attack >= player.stats['special-attack'] ? 9 : 5) : -12;
+    if (['thunder-wave','glare','stun-spore'].includes(move.origName)) score += player.status === 'none' ? (getRealSpeed(player, true) > getRealSpeed(enemy, false) ? 8 : 4) : -10;
+    if (['spore','sleep-powder','hypnosis','lovely-kiss','sing','yawn'].includes(move.origName)) score += player.status === 'none' ? 9 : -12;
+    if (move.origName === 'leech-seed') score += !player.volatile.seeded && !player.types.includes('grass') ? 7 : -12;
+    if (move.origName === 'perish-song') score += player.volatile.perish <= 0 && State.enemyTeam.filter(pk => pk.stats.hp > 0).length > 1 ? 5 : -8;
+    if (move.origName === 'taunt') score += player.volatile.taunt <= 0 && player.moves.filter(m => m.category === 'status').length >= 2 ? 8 : -4;
+    if (move.origName === 'attract') { const valid = enemy.gender !== 'genderless' && player.gender !== 'genderless' && enemy.gender !== player.gender && !hasAbility(player, 'oblivious') && !hasAbility(player, 'aroma-veil'); score += valid && !player.volatile.infatuatedBy ? 6 : -12; }
+    if (move.origName === 'substitute') score += enemy.volatile.substitute <= 0 && hpFraction > 0.55 ? 5 : -8;
+    if (move.origName === 'belly-drum') score += hpFraction > 0.72 && enemy.modifiers.attack < 4 ? 7 : -12;
+    if (move.origName === 'haze') {
+        const playerBoosts = Object.values(player.modifiers).filter(v => v > 0).reduce((a, b) => a + b, 0);
+        const ownBoosts = Object.values(enemy.modifiers).filter(v => v > 0).reduce((a, b) => a + b, 0);
+        score += playerBoosts * 3 - ownBoosts * 2 - (playerBoosts === 0 ? 6 : 0);
+    }
+    if (move.origName === 'trick-room') {
+        const currentlyHelpful = getRealSpeed(enemy, false) < getRealSpeed(player, true);
+        score += State.field.trickRoom > 0 ? (currentlyHelpful ? -6 : 5) : (currentlyHelpful ? 7 : -3);
+    }
+    if (WEATHER_SETUP_MOVES.has(move.origName)) score += 2.5;
+    if (TERRAIN_SETUP_MOVES.has(move.origName)) score += 2.5;
+    const selfChanges = move.statChangeTarget === 'user' ? move.statChanges : [];
+    const positive = selfChanges.filter(change => change.change > 0).reduce((sum, change) => sum + change.change, 0);
+    if (positive > 0) {
+        const existing = selfChanges.reduce((sum, change) => sum + Math.max(0, enemy.modifiers[change.stat.name] || 0), 0);
+        score += positive * (hpFraction > 0.65 ? 3 : hpFraction > 0.4 ? 1.5 : 0.3) - existing * 1.5;
+        if (threatDamage >= enemy.stats.hp * 0.6) score -= 5;
+    }
+    const targetDrops = move.statChangeTarget !== 'user' ? move.statChanges.filter(change => change.change < 0) : [];
+    score += targetDrops.reduce((sum, change) => sum + Math.abs(change.change) * 1.8, 0);
+    return score;
+}
+
+function scoreEnemyMove(enemy, player, move, context = {}) {
+    const threatDamage = bestDamageOption(player, enemy, true).damage;
+    let score = Math.random() * 1.2;
+    if (isDamagingMove(move)) {
+        const damage = estimateMoveDamage(enemy, player, move, false);
+        const fraction = damage / Math.max(1, player.stats.maxHp);
+        score += fraction * 24;
+        if (damage >= player.stats.hp) score += 18;
+        if (moveWouldBeImmune(enemy, player, move)) score -= 30;
+        const typeMod = getAttackTypeMultiplier(enemy, effectiveMoveType(enemy, move), player, move);
+        score += typeMod > 1 ? 3.5 : typeMod < 1 ? -2.5 : 0;
+        if (estimatedAccuracy(enemy, player, move) < 0.75) score -= 2;
+        if (effectivePriority(enemy, move) > 0 && damage >= player.stats.hp) score += 6;
+        if (move.drain > 0 && enemy.stats.hp < enemy.stats.maxHp * 0.65) score += 3;
+        if (move.drain < 0 && enemy.stats.hp < enemy.stats.maxHp * 0.25) score -= 5;
+        if (SELF_DESTRUCT_MOVES.has(move.origName) && State.enemyTeam.filter(pk => pk.stats.hp > 0).length > 1 && player.stats.hp > damage) score -= 12;
+        if (context.playerSwitching && move.origName === 'pursuit') score += 22;
+        if (hasAbility(enemy, 'stance-change') && enemy.stanceForm === 'shield') score += 1.5;
+    } else {
+        score += statusMoveScore(enemy, player, move, threatDamage);
+    }
+    if (enemy.lockedMove && move.origName !== enemy.lockedMove) score -= 50;
+    if (move.origName === enemy.lastMove && !isDamagingMove(move)) score -= 0.8;
+    return score;
+}
+
+function weightedNearBest(scored) {
+    if (!scored.length) return null;
+    scored.sort((a, b) => b.score - a.score);
+    const best = scored[0].score;
+    const pool = scored.filter(entry => entry.score >= best - 4.5).slice(0, 3);
+    const weights = pool.map(entry => Math.exp((entry.score - best) / 2.2));
+    let roll = Math.random() * weights.reduce((sum, value) => sum + value, 0);
+    for (let i = 0; i < pool.length; i++) {
+        roll -= weights[i];
+        if (roll <= 0) return pool[i];
+    }
+    return pool[0];
+}
+
 function chooseEnemyMove(enemy, context = {}) {
     if (enemy?.volatile?.chargingMove) return enemy.volatile.chargingMove;
+    const player = State.playerTeam[State.activePlayerIdx];
     const legal = getLegalMoves(enemy);
-    const scored = legal.map(move => {
-        let score = Math.random() * 2;
-        if (isDamagingMove(move)) score += 3;
-        if (move.healing > 0 && enemy.stats.hp < enemy.stats.maxHp / 2) score += 4;
-        if (move.healing > 0 && enemy.stats.hp >= enemy.stats.maxHp * 0.9) score -= 5;
-        if (['stealth-rock', 'spikes', 'toxic-spikes', 'sticky-web'].includes(move.origName)) score += State.turn <= 3 ? 2 : -1;
-        if (PROTECT_MOVES.has(move.origName)) score += enemy.stats.hp < enemy.stats.maxHp / 3 ? 1 : -1;
-        if (context.playerSwitching && move.origName === 'pursuit') score += 12;
-        return { move, score };
-    }).sort((a, b) => b.score - a.score);
-    return scored[0]?.move || { ...STRUGGLE_MOVE };
+    const chosen = weightedNearBest(legal.map(move => ({ move, score: scoreEnemyMove(enemy, player, move, context) })));
+    return chosen?.move || { ...STRUGGLE_MOVE };
+}
+
+function chooseEnemyAction(enemy, context = {}) {
+    if (enemy?.volatile?.chargingMove) return { type: 'move', move: enemy.volatile.chargingMove };
+    const player = State.playerTeam[State.activePlayerIdx];
+    const switchDecision = context.allowSwitch === false ? null : evaluateEnemySwitch(enemy, player);
+    if (switchDecision) {
+        State.ai.enemyLastDecision = switchDecision;
+        return switchDecision;
+    }
+    const move = chooseEnemyMove(enemy, context);
+    const decision = { type: 'move', move };
+    State.ai.enemyLastDecision = decision;
+    return decision;
 }
 
 function determineOrder(player, enemy, playerMove, enemyMove) {
@@ -2470,6 +2998,19 @@ function canAct(pk, selectedMove = null) {
         }
         if (pk.volatile.confused === 0) logMsg(`✨ ${escapeHTML(pk.name)} の混乱がとけた！`);
     }
+    if (pk.volatile.infatuatedBy) {
+        const source = pk.volatile.infatuatedBy;
+        const activeFoe = activeOpponentOf(pk);
+        if (!source || source.stats.hp <= 0 || source !== activeFoe) {
+            pk.volatile.infatuatedBy = null;
+        } else {
+            logMsg(`💗 ${escapeHTML(pk.name)} は ${escapeHTML(source.name)} にメロメロだ！`);
+            if (Math.random() < 0.5) {
+                logMsg(`💔 ${escapeHTML(pk.name)} はメロメロで技が出せない！`);
+                return false;
+            }
+        }
+    }
     return true;
 }
 function calculateConfusionDamage(pk) {
@@ -2500,6 +3041,11 @@ async function executeTurn(playerMove, options = {}) {
     const player = State.playerTeam[State.activePlayerIdx];
     const enemy = State.enemyTeam[State.activeEnemyIdx];
     if (!player || !enemy) return;
+    const enemyDecision = chooseEnemyAction(enemy);
+    if (enemyDecision.type === 'switch') {
+        await executeEnemySwitchTurn(enemyDecision.targetIndex, playerMove, enemyDecision.reason);
+        return;
+    }
     logMsg(`--- ターン ${State.turn} ---`, true);
     State.turn++;
     for (const pk of [player, enemy]) {
@@ -2507,7 +3053,7 @@ async function executeTurn(playerMove, options = {}) {
         pk.volatile.flinch = false;
         pk.lastDamageTaken = null; pk.volatile.lastHitCritical = false; pk.abilityState.justSwitched = false;
     }
-    const enemySelectedMove = chooseEnemyMove(enemy);
+    const enemySelectedMove = enemyDecision.move;
     const resolvedPlayerMove = prepareTurnMove(player, playerMove);
     const resolvedEnemyMove = prepareTurnMove(enemy, enemySelectedMove);
     updateProtectChainForSelection(player, resolvedPlayerMove);
@@ -2526,6 +3072,7 @@ async function executeTurn(playerMove, options = {}) {
         if (action.atk.stats.hp <= 0 || action.def.stats.hp <= 0) continue;
         await performAction(action.atk, action.def, action.move, action.isPlayer);
     }
+    State.ai.enemyLastAction = 'move';
     await applyEndTurnEffects();
     decrementTimers();
     player.turnsActive++;
@@ -2557,6 +3104,77 @@ async function switchPlayerTo(targetIndex) {
     return incoming;
 }
 
+async function switchEnemyTo(targetIndex, reason = '') {
+    const outgoing = State.enemyTeam[State.activeEnemyIdx];
+    const incoming = State.enemyTeam[targetIndex];
+    if (!outgoing || !incoming || targetIndex === State.activeEnemyIdx || incoming.stats.hp <= 0) return null;
+    outgoing.megaPending = false;
+    resetOnSwitch(outgoing, true);
+    State.activeEnemyIdx = targetIndex;
+    resetOnSwitch(incoming, false);
+    State.ai.enemySwitchCooldown = 2;
+    State.ai.enemyLastAction = 'switch';
+    State.ai.enemyLastSwitchTurn = State.turn;
+    State.ai.enemyVoluntarySwitches++;
+    logMsg(`🔄 相手は ${escapeHTML(outgoing.name)} を戻した！`);
+    logMsg(`相手は <b>${escapeHTML(incoming.name)}</b> を繰り出した！`);
+    announceEntryItem(incoming);
+    activateEntryAbility(incoming, false);
+    updateBattleUI();
+    await applyHazards(incoming, false);
+    return incoming;
+}
+
+async function executeEnemySwitchTurn(targetIndex, playerMove, reason = '') {
+    const player = State.playerTeam[State.activePlayerIdx];
+    const outgoing = State.enemyTeam[State.activeEnemyIdx];
+    const target = State.enemyTeam[targetIndex];
+    if (!player || !outgoing || !target || targetIndex === State.activeEnemyIdx || target.stats.hp <= 0) return;
+    logMsg(`--- ターン ${State.turn} ---`, true);
+    State.turn++;
+    for (const pk of [player, outgoing]) {
+        pk.volatile.protecting = false; pk.volatile.protectMove = null;
+        pk.volatile.flinch = false;
+        pk.lastDamageTaken = null; pk.volatile.lastHitCritical = false; pk.abilityState.justSwitched = false;
+    }
+    const resolvedPlayerMove = prepareTurnMove(player, playerMove);
+    updateProtectChainForSelection(player, resolvedPlayerMove);
+    const pursuitIntercept = resolvedPlayerMove.origName === 'pursuit' && isDamagingMove(resolvedPlayerMove);
+    if (canMegaEvolve(player, true) && player.megaPending) await applyMegaEvolution(player, true);
+
+    if (pursuitIntercept) {
+        logMsg(`⚠️ ${escapeHTML(player.name)} の おいうち が交代前の ${escapeHTML(outgoing.name)} を狙った！`);
+        const originalPower = resolvedPlayerMove.power;
+        resolvedPlayerMove.power = Math.max(1, originalPower || 40) * 2;
+        try {
+            await performAction(player, outgoing, resolvedPlayerMove, true);
+        } finally {
+            resolvedPlayerMove.power = originalPower;
+        }
+        if (outgoing.stats.hp > 0) await switchEnemyTo(targetIndex, reason);
+    } else {
+        const incoming = await switchEnemyTo(targetIndex, reason);
+        if (incoming?.stats.hp > 0 && player.stats.hp > 0) {
+            player.abilityState.movingLast = true;
+            await performAction(player, incoming, resolvedPlayerMove, true);
+        }
+    }
+
+    await applyEndTurnEffects();
+    decrementTimers();
+    const activeEnemy = State.enemyTeam[State.activeEnemyIdx];
+    if (player.stats.hp > 0) player.turnsActive++;
+    if (activeEnemy?.stats.hp > 0) activeEnemy.turnsActive++;
+    updateBattleUI();
+    await checkFaint(null, pursuitIntercept && outgoing.stats.hp <= 0 ? targetIndex : null);
+    const currentPlayer = State.playerTeam[State.activePlayerIdx];
+    if (!State.gameEnded && currentPlayer?.stats.hp > 0 && currentPlayer.volatile.chargingMove) {
+        logMsg(`⏩ ${escapeHTML(currentPlayer.name)} は次のターンも ${escapeHTML(currentPlayer.volatile.chargingMove.name)} を続ける！`);
+        await sleep(550);
+        await executeTurn(null, { automaticCharge: true });
+    }
+}
+
 async function executeSwitchTurn(targetIndex) {
     const outgoing = State.playerTeam[State.activePlayerIdx];
     const target = State.playerTeam[targetIndex];
@@ -2571,7 +3189,21 @@ async function executeSwitchTurn(targetIndex) {
         pk.volatile.flinch = false;
         pk.lastDamageTaken = null; pk.volatile.lastHitCritical = false; pk.abilityState.justSwitched = false;
     }
-    const enemyMove = chooseEnemyMove(enemy, { playerSwitching: true });
+    const enemyDecision = chooseEnemyAction(enemy, { playerSwitching: true });
+    if (enemyDecision.type === 'switch') {
+        await switchEnemyTo(enemyDecision.targetIndex, enemyDecision.reason);
+        await switchPlayerTo(targetIndex);
+        await applyEndTurnEffects();
+        decrementTimers();
+        const activePlayer = State.playerTeam[State.activePlayerIdx];
+        const activeEnemy = State.enemyTeam[State.activeEnemyIdx];
+        if (activePlayer?.stats.hp > 0) activePlayer.turnsActive++;
+        if (activeEnemy?.stats.hp > 0) activeEnemy.turnsActive++;
+        updateBattleUI();
+        await checkFaint();
+        return;
+    }
+    const enemyMove = enemyDecision.move;
     if (canMegaEvolve(enemy, false)) enemy.megaPending = true;
     const pursuitIntercept = enemyMove.origName === 'pursuit' && isDamagingMove(enemyMove);
 
@@ -2709,6 +3341,7 @@ async function performAction(atk, def, move, isPlayer) {
     if (atk.stats.hp <= 0 || def.stats.hp <= 0) return;
     const reflectedAction = Boolean(move.reflected);
     const calledBySleepTalk = Boolean(move.calledBySleepTalk);
+    if (!reflectedAction) applyStanceChangeBeforeMove(atk, move, isPlayer, calledBySleepTalk);
     if (!reflectedAction && !calledBySleepTalk && !canAct(atk, move)) {
         if (PROTECT_MOVES.has(move.origName)) atk.volatile.protectChain = 0;
         if (move.isChargeSetup || move.isChargeRelease) clearChargeState(atk);
@@ -3607,6 +4240,16 @@ async function handleSpecialStatusMove(atk, def, move, isPlayer) {
                 if (hasItem(def, 'mental-herb')) { consumeHeldItem(def); def.volatile.taunt = 0; logMsg(`🌿 ${escapeHTML(def.name)} は メンタルハーブ でちょうはつを治した！`); }
             }
             return true;
+        case 'attract': {
+            const invalidGender = atk.gender === 'genderless' || def.gender === 'genderless' || atk.gender === def.gender;
+            if (invalidGender || hasAbility(def, 'oblivious') || hasAbility(def, 'aroma-veil') || def.volatile.infatuatedBy) {
+                logMsg('❌ しかし、うまく決まらなかった！');
+            } else {
+                def.volatile.infatuatedBy = atk;
+                logMsg(`💗 ${escapeHTML(def.name)} は ${escapeHTML(atk.name)} にメロメロになった！`);
+            }
+            return true;
+        }
         case 'perish-song': atk.volatile.perish = def.volatile.perish = 3; logMsg('🎵 両方のポケモンに滅びのカウントが始まった！'); return true;
         case 'roar': case 'whirlwind': await forceSwitchTarget(def, !isPlayer, atk); return true;
         case 'protect': case 'detect': case 'spiky-shield': case 'kings-shield': case 'baneful-bunker': case 'obstruct': case 'silk-trap': case 'burning-bulwark':
@@ -3757,6 +4400,7 @@ function damageEndTurn(pk, amount, source) {
 }
 
 function decrementTimers() {
+    if (State.ai.enemySwitchCooldown > 0) State.ai.enemySwitchCooldown--;
     for (const side of [State.field.player, State.field.enemy]) {
         for (const key of ['reflect', 'lightScreen', 'tailwind']) if (side[key] > 0) side[key]--;
     }
@@ -3812,11 +4456,17 @@ async function applyHazards(pk, isPlayer) {
 function resetOnSwitch(pk, isLeaving = true) {
     pk.lockedMove = null;
     pk.megaPending = false;
+    if (isLeaving) {
+        for (const other of [...State.playerTeam, ...State.enemyTeam]) {
+            if (other?.volatile?.infatuatedBy === pk) other.volatile.infatuatedBy = null;
+        }
+    }
+    if (isLeaving && hasAbility(pk, 'stance-change')) revertStanceChange(pk);
     if (isLeaving && hasAbility(pk, 'natural-cure') && pk.status !== 'none') { pk.status = 'none'; pk.statusTurns = 0; pk.toxicCounter = 0; }
     if (isLeaving && hasAbility(pk, 'regenerator') && pk.stats.hp > 0) pk.stats.hp = Math.min(pk.stats.maxHp, pk.stats.hp + Math.floor(pk.stats.maxHp / 3));
     pk.types = pk.isMega && pk.megaProfile ? [...pk.megaProfile.types] : [...(pk.battleBaseTypes || pk.originalTypes || pk.types)];
     pk.modifiers = { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 };
-    pk.volatile.flinch = false; pk.volatile.protecting = false; pk.volatile.protectMove = null; pk.volatile.protectChain = 0; clearChargeState(pk); pk.volatile.confused = 0; pk.volatile.taunt = 0; pk.volatile.trapped = 0;
+    pk.volatile.flinch = false; pk.volatile.protecting = false; pk.volatile.protectMove = null; pk.volatile.protectChain = 0; clearChargeState(pk); pk.volatile.confused = 0; pk.volatile.infatuatedBy = null; pk.volatile.taunt = 0; pk.volatile.trapped = 0; pk.volatile.trappedBy = null;
     pk.volatile.seeded = false; pk.volatile.saltCure = false; pk.volatile.substitute = 0; pk.volatile.perish = 0;
     pk.volatile.micle = false; pk.volatile.focusEnergy = 0; pk.volatile.flashFire = false; pk.volatile.disabledMove = null; pk.volatile.disableTurns = 0; pk.volatile.faintEventProcessed = false; pk.volatile.lastHitCritical = false; pk.volatile.pendingItemSwitch = null;
     pk.abilityState.proteanUsed = false; pk.abilityState.unburden = false; pk.abilityState.justSwitched = !isLeaving; pk.abilityState.charged = false; pk.abilityState.slowStartTurns = 0;
@@ -3825,7 +4475,7 @@ function resetOnSwitch(pk, isLeaving = true) {
     pk.lastDamageTaken = null;
 }
 
-async function checkFaint(preferredPlayerIndex = null) {
+async function checkFaint(preferredPlayerIndex = null, preferredEnemyIndex = null) {
     const currentPlayer = State.playerTeam[State.activePlayerIdx];
     const currentEnemy = State.enemyTeam[State.activeEnemyIdx];
     if (currentPlayer?.stats.hp <= 0) triggerFaintAbilities(currentPlayer, null, null);
@@ -3841,7 +4491,8 @@ async function checkFaint(preferredPlayerIndex = null) {
         document.getElementById('enemy-img')?.classList.add('faint');
         logMsg(`💀 相手の ${escapeHTML(enemy.name)} はたおれた！`);
         await sleep(650);
-        State.activeEnemyIdx = State.enemyTeam.findIndex(pk => pk.stats.hp > 0);
+        const preferredEnemyIsValid = Number.isInteger(preferredEnemyIndex) && State.enemyTeam[preferredEnemyIndex]?.stats.hp > 0;
+        State.activeEnemyIdx = preferredEnemyIsValid ? preferredEnemyIndex : State.enemyTeam.findIndex(pk => pk.stats.hp > 0);
         enemy = State.enemyTeam[State.activeEnemyIdx];
         resetOnSwitch(enemy, false);
         logMsg(`相手は <b>${escapeHTML(enemy.name)}</b> を繰り出した！`);

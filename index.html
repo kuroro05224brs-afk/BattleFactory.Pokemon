@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>ウェブ版 バトルファクトリー バトンタッチ対応版</title>
+    <title>ウェブ版 バトルファクトリー ターン技・再開機能レビュー版</title>
     <style>
         :root {
             --primary: #2c3e50;
@@ -390,6 +390,7 @@
         <h3>手持ちにするポケモンを3匹選んでください</h3>
         <div id="draft-pool" class="flex"></div>
         <button id="btn-start-battle" disabled style="margin-top:20px;">この3匹でバトル開始</button>
+        <button id="btn-resume-session" class="hidden" type="button" style="margin-top:10px;background:#476582;">直前の続きから再開</button>
     </div>
     <div id="battle-screen" class="hidden">
         <div class="battle-layout">
@@ -469,6 +470,7 @@
         </details>
         <div class="modal-actions">
             <button id="btn-close-options" type="button">ゲームに戻る</button>
+            <button id="btn-restart-checkpoint" type="button" style="background:#476582;">このバトルを最初からやり直す</button>
             <button id="btn-end-game" class="danger-btn" type="button">ゲームを終了する</button>
         </div>
     </div>
@@ -714,12 +716,12 @@ const ABILITY_NAMES = {
     'protosynthesis':'こだいかっせい','quark-drive':'クォークチャージ',
     'intrepid-sword':'ふとうのけん','dauntless-shield':'ふくつのたて','desolate-land':'おわりのだいち','primordial-sea':'はじまりのうみ',
     'multitype':'マルチタイプ','rks-system':'ARシステム','stance-change':'バトルスイッチ',
-    'ice-face':'アイスフェイス','klutz':'ぶきよう'
+    'ice-face':'アイスフェイス','disguise':'ばけのかわ','klutz':'ぶきよう'
 };
 
 // この1対1エンジンで効果を持つ特性。未登録特性は監査に表示し、効果があると誤認させない。
 const IMPLEMENTED_ABILITIES = new Set(Object.keys(ABILITY_NAMES));
-const ABILITY_REVIEW_VERSION = '2026-07-17-v6-ice-face-klutz-full-audit';
+const ABILITY_REVIEW_VERSION = '2026-07-17-v9-steel-beam-fixed-recoil-review';
 const SINGLE_BATTLE_NO_EFFECT_ABILITIES = new Set([
     'run-away','illuminate','pickup','honey-gather','ball-fetch','plus','minus','friend-guard','healer','telepathy','symbiosis',
     'battery','power-spot','steely-spirit','commander','costar','hospitality','receiver','power-of-alchemy','curious-medicine'
@@ -740,8 +742,22 @@ const MOVE_FLAG_SETS = {
 };
 const NON_CONTACT_PHYSICAL_MOVES = new Set(['anchor-shot','attack-order','barrage','beak-blast','bone-club','bonemerang','bone-rush','bullet-seed','diamond-storm','dragon-darts','earthquake','egg-bomb','explosion','feint','fissure','fling','flying-press','freeze-shock','gunk-shot','ice-shard','icicle-spear','magnitude','natural-gift','pay-day','pin-missile','poison-sting','precipice-blades','psycho-cut','razor-leaf','rock-blast','rock-slide','rock-throw','rock-tomb','sacred-fire','scale-shot','seed-bomb','self-destruct','smack-down','spike-cannon','spirit-shackle','stone-edge','thousand-arrows','thousand-waves']);
 const CRASH_MOVES = new Set(['axe-kick','high-jump-kick','jump-kick','supercell-slam']);
+// 与ダメージ比例ではなく、使用者の最大HPを基準に固定反動を受ける技。
+// PokeAPIでは drain が負数として返る場合があるため、通常の反動処理から明示的に分離する。
+const FIXED_MAX_HP_RECOIL_MOVES = new Set(['steel-beam']);
+function isFixedMaxHpRecoilMove(move) { return Boolean(move && FIXED_MAX_HP_RECOIL_MOVES.has(move.origName)); }
+function applyFixedMaxHpRecoil(atk, move) {
+    if (!isFixedMaxHpRecoilMove(move) || !atk || atk.stats.hp <= 0 || hasAbility(atk, 'magic-guard')) return 0;
+    const recoil = Math.max(1, Math.ceil(atk.stats.maxHp / 2));
+    const before = atk.stats.hp;
+    atk.stats.hp = Math.max(0, atk.stats.hp - recoil);
+    const dealt = before - atk.stats.hp;
+    if (dealt > 0) logMsg(`💥 ${escapeHTML(atk.name)} は ${escapeHTML(move.name)} の反動で最大HPの半分を失った！`);
+    return dealt;
+}
 function moveHasFlag(move, flag) {
     if (!move) return false;
+    if (flag === 'recoil' && isFixedMaxHpRecoilMove(move)) return false;
     if (Array.isArray(move.flags) && move.flags.includes(flag)) return true;
     const name = move.origName || '';
     if (flag === 'contact') return move.category === 'physical' && !NON_CONTACT_PHYSICAL_MOVES.has(name);
@@ -751,7 +767,7 @@ function moveHasFlag(move, flag) {
     if (flag === 'slicing') return MOVE_FLAG_SETS.slicing.has(name) || name.includes('slash') || name.includes('cutter') || name.includes('blade');
     if (flag === 'sound' || flag === 'bullet' || flag === 'powder' || flag === 'wind' || flag === 'reflectable') return MOVE_FLAG_SETS[flag].has(name);
     if (flag === 'heal') return move.healing > 0 || move.drain > 0 || ['rest','recover','roost','slack-off','soft-boiled','milk-drink','shore-up','synthesis','moonlight','morning-sun','heal-order','strength-sap','life-dew'].includes(name);
-    if (flag === 'recoil') return move.drain < 0 || CRASH_MOVES.has(name);
+    if (flag === 'recoil') return (!isFixedMaxHpRecoilMove(move) && move.drain < 0) || CRASH_MOVES.has(name);
     return false;
 }
 function hasEffectiveAbility(pk, slug, attacker = null) { return hasAbility(pk, slug) && !(attacker && ignoresAbilities(attacker, pk)); }
@@ -839,13 +855,24 @@ const RECHARGE_ACTION = Object.freeze({
     description: '前のターンに使った大技の反動で、このターンは行動も交代もできない。'
 });
 const INVULNERABLE_TWO_TURN_MOVES = new Set(['dig', 'dive', 'fly', 'bounce', 'phantom-force', 'shadow-force']);
-// 1ターン目は溜めるだけで、2ターン目に能力上昇などの効果を発動する技。
-// 姿を隠す技とは異なり、溜めている間も通常どおり攻撃を受ける。
+// 姿を隠さず力をため、次のターンに攻撃する技。
+const CHARGE_ATTACK_TWO_TURN_MOVES = new Set([
+    'solar-beam', 'solar-blade', 'sky-attack', 'skull-bash', 'razor-wind',
+    'meteor-beam', 'electro-shot', 'freeze-shock', 'ice-burn'
+]);
+// 1ターン目は溜めるだけで、2ターン目に能力上昇を発動する技。
 const CHARGE_EFFECT_TWO_TURN_MOVES = new Set(['geomancy']);
-const TWO_TURN_MOVES = new Set([...INVULNERABLE_TWO_TURN_MOVES, ...CHARGE_EFFECT_TWO_TURN_MOVES]);
+const TWO_TURN_MOVES = new Set([...INVULNERABLE_TWO_TURN_MOVES, ...CHARGE_ATTACK_TWO_TURN_MOVES, ...CHARGE_EFFECT_TWO_TURN_MOVES]);
+const PIVOT_MOVES = new Set(['u-turn', 'volt-switch', 'flip-turn']);
+const RAMPAGE_MOVES = new Set(['thrash', 'outrage', 'petal-dance', 'raging-fury']);
+const DELAYED_ATTACK_MOVES = new Set(['future-sight', 'doom-desire']);
 const TWO_TURN_CHARGE_MESSAGES = {
     dig: '地中にもぐった！', dive: '水中に身をひそめた！', fly: '空高く飛び上がった！', bounce: '空高く跳び上がった！',
     'phantom-force': '姿を消した！', 'shadow-force': '姿を消した！',
+    'solar-beam': '光をいっぱいに集めている！', 'solar-blade': '光を集めて刃を作っている！',
+    'sky-attack': '激しく輝きながら狙いを定めている！', 'skull-bash': '頭を引っ込めて力をためている！',
+    'razor-wind': '風の刃を作っている！', 'meteor-beam': '宇宙の力を集めている！',
+    'electro-shot': '電気を吸収している！', 'freeze-shock': '凍える電気をためている！', 'ice-burn': '冷気をためている！',
     geomancy: '大地のエネルギーを吸収している！'
 };
 const MOVE_CATEGORY_NAMES = { physical: '物理', special: '特殊', status: '変化' };
@@ -903,6 +930,13 @@ function safeStorageGet(key, fallback = null) {
 function safeStorageSet(key, value) {
     try { localStorage.setItem(key, String(value)); } catch (_) { /* storage unavailable */ }
 }
+function safeStorageRemove(key) {
+    try { localStorage.removeItem(key); } catch (_) { /* storage unavailable */ }
+}
+
+const CURRENT_STREAK_STORAGE_KEY = 'battle-factory-current-streak-v1';
+const SESSION_CHECKPOINT_STORAGE_KEY = 'battle-factory-last-session-v1';
+const SESSION_CHECKPOINT_VERSION = 2;
 
 const FACTORY_SYMBOL_STORAGE_KEY = 'battle-factory-earned-symbols-v1';
 const FACTORY_SYMBOL_DEFS = Object.freeze({
@@ -943,7 +977,7 @@ const STRUGGLE_MOVE = Object.freeze({
 });
 
 const State = {
-    streak: 0,
+    streak: Number(safeStorageGet(CURRENT_STREAK_STORAGE_KEY, '0') || 0),
     maxStreak: Number(safeStorageGet('battle-factory-max-streak', '0') || 0),
     earnedSymbols: loadFactorySymbols(),
     symbolAwardQueue: [],
@@ -966,7 +1000,7 @@ const State = {
 };
 
 function freshSideField() {
-    return { reflect: 0, lightScreen: 0, rocks: false, spikes: 0, toxicSpikes: 0, stickyWeb: false, tailwind: 0, healingWish: false };
+    return { reflect: 0, lightScreen: 0, rocks: false, spikes: 0, toxicSpikes: 0, stickyWeb: false, tailwind: 0, healingWish: false, delayedAttack: null };
 }
 function freshField() {
     return { player: freshSideField(), enemy: freshSideField(), weather: { name: 'none', turns: 0 }, terrain: { name: 'none', turns: 0 }, trickRoom: 0 };
@@ -1105,7 +1139,7 @@ async function cacheAbilityLocalization(abilityRef) {
 }
 function hasAbility(pk, slug) { return pk?.ability === slug; }
 const MOLD_BREAKER_UNIGNORABLE_ABILITIES = new Set(['full-metal-body', 'prism-armor', 'shadow-shield']);
-const ABILITY_CANNOT_BE_REPLACED = new Set(['as-one-glastrier', 'as-one-spectrier', 'battle-bond', 'comatose', 'multitype', 'rks-system', 'commander', 'stance-change', 'ice-face']);
+const ABILITY_CANNOT_BE_REPLACED = new Set(['as-one-glastrier', 'as-one-spectrier', 'battle-bond', 'comatose', 'multitype', 'rks-system', 'commander', 'stance-change', 'ice-face', 'disguise']);
 function ignoresAbilities(attacker, defender = null) {
     if (!['mold-breaker', 'teravolt', 'turboblaze'].includes(attacker?.ability)) return false;
     if (defender && hasItem(defender, 'ability-shield')) return false;
@@ -1240,11 +1274,110 @@ function awardFactorySymbolsForRecord(record) {
     showNextFactorySymbolAward();
     return newlyEarned;
 }
+function checkpointReplacer(key, value) {
+    if (['infatuatedBy', 'trappedBy', 'pendingItemSwitch', 'sourceMove'].includes(key)) return null;
+    if (key === 'runtimeItemMultiplier' || key === 'runtimePower') return undefined;
+    return value;
+}
+function serializeTeamForCheckpoint(team) {
+    return JSON.parse(JSON.stringify(team || [], checkpointReplacer));
+}
+function saveSessionCheckpoint(phase = 'battle') {
+    if (!State.playerTeam.length || !State.enemyTeam.length) return false;
+    const payload = {
+        version: SESSION_CHECKPOINT_VERSION,
+        phase,
+        savedAt: Date.now(),
+        streak: State.streak,
+        playerTeam: serializeTeamForCheckpoint(State.playerTeam),
+        enemyTeam: serializeTeamForCheckpoint(State.enemyTeam)
+    };
+    safeStorageSet(SESSION_CHECKPOINT_STORAGE_KEY, JSON.stringify(payload));
+    updateCheckpointButtons();
+    return true;
+}
+function loadSessionCheckpoint() {
+    try {
+        const data = JSON.parse(safeStorageGet(SESSION_CHECKPOINT_STORAGE_KEY, 'null') || 'null');
+        if (!data || data.version !== SESSION_CHECKPOINT_VERSION || !['battle', 'swap'].includes(data.phase)) return null;
+        if (!Array.isArray(data.playerTeam) || !data.playerTeam.length || !Array.isArray(data.enemyTeam) || !data.enemyTeam.length) return null;
+        return data;
+    } catch (_) { return null; }
+}
+function clearSessionCheckpoint({ clearStreak = false } = {}) {
+    safeStorageRemove(SESSION_CHECKPOINT_STORAGE_KEY);
+    if (clearStreak) {
+        State.streak = 0;
+        safeStorageSet(CURRENT_STREAK_STORAGE_KEY, 0);
+    }
+    updateCheckpointButtons();
+}
+function normalizeRestoredPokemon(pk) {
+    if (!pk) return pk;
+    pk.modifiers ||= { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 };
+    pk.abilityState ||= {};
+    pk.itemState ||= { metronomeMove: null, metronomeCount: 0 };
+    pk.volatile ||= {};
+    Object.assign(pk.volatile, {
+        flinch: false, infatuatedBy: null, trappedBy: null, pendingItemSwitch: null,
+        rampageMove: pk.volatile.rampageMove || null,
+        rampageTurns: Number(pk.volatile.rampageTurns || 0),
+        rampageTotal: Number(pk.volatile.rampageTotal || 0)
+    });
+    for (const move of pk.moves || []) {
+        delete move.runtimePower;
+        delete move.runtimeItemMultiplier;
+        move.pp = Number.isFinite(move.pp) ? move.pp : move.maxPp;
+    }
+    return pk;
+}
+function updateCheckpointButtons() {
+    const checkpoint = loadSessionCheckpoint();
+    const resume = document.getElementById('btn-resume-session');
+    const restart = document.getElementById('btn-restart-checkpoint');
+    resume?.classList.toggle('hidden', !checkpoint);
+    if (restart) {
+        restart.classList.toggle('hidden', !checkpoint || checkpoint.phase !== 'battle');
+        restart.textContent = 'このバトルを最初からやり直す';
+    }
+}
+async function restoreSessionCheckpoint(checkpoint = loadSessionCheckpoint()) {
+    if (!checkpoint || isAnimating) return false;
+    isAnimating = true;
+    showLoader(true, checkpoint.phase === 'swap' ? '交換画面を復元しています...' : '直前のバトルを復元しています...');
+    State.playerTeam = checkpoint.playerTeam.map(normalizeRestoredPokemon);
+    State.enemyTeam = checkpoint.enemyTeam.map(normalizeRestoredPokemon);
+    State.streak = Math.max(0, Number(checkpoint.streak || 0));
+    safeStorageSet(CURRENT_STREAK_STORAGE_KEY, State.streak);
+    document.getElementById('streak').textContent = State.streak;
+    if (checkpoint.phase === 'swap') {
+        State.battleResolved = true;
+        State.gameEnded = false;
+        showLoader(false);
+        showSwapScreen();
+    } else {
+        await startBattlePhase({ restoringCheckpoint: true });
+        showLoader(false);
+    }
+    isAnimating = false;
+    updateCheckpointButtons();
+    return true;
+}
+async function restartFromCheckpoint() {
+    const checkpoint = loadSessionCheckpoint();
+    if (!checkpoint || checkpoint.phase !== 'battle') return false;
+    if (!confirm('このバトルを開始時点からやり直しますか？')) return false;
+    closeOptions();
+    return restoreSessionCheckpoint(checkpoint);
+}
+
 function endCurrentGame() {
     if (!confirm('現在のゲームを終了しますか？\n連勝記録は0に戻ります。')) return;
     closeOptions();
     State.gameEnded = true;
     State.streak = 0;
+    safeStorageSet(CURRENT_STREAK_STORAGE_KEY, 0);
+    safeStorageRemove(SESSION_CHECKPOINT_STORAGE_KEY);
     document.getElementById('streak').textContent = '0';
     [...State.playerTeam, ...State.enemyTeam].forEach(revertMegaEvolution);
     showLoader(false);
@@ -1645,6 +1778,57 @@ function restoreIceFaceAtTurnEnd(pk) {
     return applyIceFaceForm(pk, 'ice', isPlayerPokemon(pk), true);
 }
 
+const MIMIKYU_FORM_FALLBACK = Object.freeze({
+    disguised: { name: 'ミミッキュ', apiName: 'mimikyu-disguised' },
+    busted: { name: 'ミミッキュ（ばれたすがた）', apiName: 'mimikyu-busted' }
+});
+async function prepareDisguiseProfile(pokemon) {
+    if (!pokemon || pokemon.speciesKey !== 'mimikyu' || !hasAbility(pokemon, 'disguise')) return;
+    const [disguisedData, bustedData] = await Promise.all([
+        fetchAPI(`${POKE_API}/pokemon/mimikyu-disguised`, State.cache.pokemon, 0, 7000),
+        fetchAPI(`${POKE_API}/pokemon/mimikyu-busted`, State.cache.pokemon, 0, 7000)
+    ]);
+    const makeProfile = (data, fallback) => ({
+        name: fallback.name,
+        apiName: data?.name || fallback.apiName,
+        spriteF: data?.sprites?.front_default || data?.sprites?.other?.home?.front_default || pokemon.spriteF,
+        spriteB: data?.sprites?.back_default || pokemon.spriteB
+    });
+    pokemon.disguiseProfile = {
+        disguised: makeProfile(disguisedData, MIMIKYU_FORM_FALLBACK.disguised),
+        busted: makeProfile(bustedData, MIMIKYU_FORM_FALLBACK.busted)
+    };
+    applyDisguiseForm(pokemon, 'disguised', null, false, true);
+}
+function applyDisguiseForm(pk, form, isPlayer = null, announce = true, force = false) {
+    const profile = pk?.disguiseProfile?.[form];
+    if (!profile || (!force && pk.disguiseForm === form) || !hasAbility(pk, 'disguise')) return false;
+    pk.name = profile.name;
+    pk.apiName = profile.apiName;
+    pk.spriteF = profile.spriteF || pk.spriteF;
+    pk.spriteB = profile.spriteB || pk.spriteB;
+    pk.disguiseForm = form;
+    if (announce) logMsg(form === 'busted'
+        ? `🎭 ${escapeHTML(pk.name)} の ばけのかわ がはがれた！`
+        : `🎭 ${escapeHTML(pk.name)} はばけたすがたに戻った！`);
+    const resolvedIsPlayer = isPlayer ?? isPlayerPokemon(pk);
+    const image = document.getElementById(resolvedIsPlayer ? 'player-img' : 'enemy-img');
+    image?.classList.remove('stance-flash');
+    void image?.offsetWidth;
+    image?.classList.add('stance-flash');
+    updateBattleUI();
+    return true;
+}
+function tryDisguiseBlock(def, atk, move, isPlayer) {
+    if (!def?.disguiseProfile || def.disguiseForm !== 'disguised' || !isDamagingMove(move) || (def.volatile?.substitute || 0) > 0) return false;
+    if (!hasEffectiveAbility(def, 'disguise', atk)) return false;
+    applyDisguiseForm(def, 'busted', !isPlayer, true);
+    const recoil = Math.max(1, Math.floor(def.stats.maxHp / 8));
+    def.stats.hp = Math.max(0, def.stats.hp - recoil);
+    logMsg(`🎭 ${escapeHTML(def.name)} の ばけのかわ！ 最初の攻撃ダメージを無効化し、体力を${recoil}失った！`);
+    return true;
+}
+
 function fallbackMegaBaseStats(pokemon, definition) {
     const boosts = MEGA_ROLE_BOOSTS[definition.role] || MEGA_ROLE_BOOSTS.mixed;
     const result = { ...pokemon.baseStats };
@@ -1767,9 +1951,15 @@ function latestJapaneseMoveText(apiMove, preferredVersionGroup = null) {
     return cleanFlavorText(entries.at(-1)?.flavor_text || '');
 }
 function synthesizeMoveDescription(move) {
+    if (isFixedMaxHpRecoilMove(move)) return '攻撃後、最大HPの半分（端数切り上げ）の反動を受ける。外れたり、まもるやみがわりで防がれたりしても反動は発生する。';
     if (move.requiresRecharge || RECHARGE_MOVES.has(move.origName)) return '攻撃が命中すると、次のターンは反動で行動も交代もできない。';
     if (INVULNERABLE_TWO_TURN_MOVES.has(move.origName)) return '1ターン目に姿を隠して攻撃を受けず、次のターンに自動で攻撃する。';
+    if (CHARGE_ATTACK_TWO_TURN_MOVES.has(move.origName)) return '1ターン目に力をため、次のターンに自動で攻撃する。パワフルハーブや特定の天候で溜めを省略できる技がある。';
     if (move.origName === 'geomancy') return '1ターン目に力をため、次のターンに特攻・特防・素早さを2段階ずつ上げる。パワフルハーブを持っている場合は、その場で能力が上がる。';
+    if (DELAYED_ATTACK_MOVES.has(move.origName)) return '使用した直後には攻撃せず、2ターン後に相手の場へ攻撃が降り注ぐ。交代されても、その時点で場にいる相手へ命中する。';
+    if (RAMPAGE_MOVES.has(move.origName)) return '2～3ターンの間、同じ技を自動で繰り返す。終了後に使用者は混乱する。';
+    if (PIVOT_MOVES.has(move.origName)) return '攻撃が命中したあと、控えのポケモンと交代する。';
+    if (move.origName === 'toxic') return '相手をもうどく状態にする。受けるダメージはターンごとに増えていく。';
     if (move.origName === 'baton-pass') return '控えと交代し、能力ランクやみがわりなどの一部の効果を引き継ぐ。おいかぜは味方の場に残るため交代後も継続する。';
     if (PROTECT_MOVES.has(move.origName)) return 'そのターンの攻撃を防ぐ。連続して使うほど失敗しやすくなる。';
     if (move.origName === 'fling') return '持っている道具を投げつける。威力と追加効果は道具によって変わり、道具はなくなる。';
@@ -1786,11 +1976,22 @@ function synthesizeMoveDescription(move) {
     return parts.join('') || (move.category === 'status' ? '能力や状態、場の状況を変化させる技。' : '相手にダメージを与える技。');
 }
 function moveDescription(pk, move) {
+    if (isFixedMaxHpRecoilMove(move)) {
+        return '使用後、最大HPの半分（端数切り上げ）の反動を受ける。攻撃が外れた場合、まもるで防がれた場合、みがわりへ命中した場合も反動が発生する。マジックガードなら反動を受けない。';
+    }
     if (move.origName === 'baton-pass') {
         return '控えと交代し、能力ランク・みがわりの残り体力・混乱・やどりぎ・拘束・ほろびのカウント・急所率上昇を引き継ぐ。おいかぜは場の効果としてそのまま残る。';
     }
     if (move.origName === 'geomancy') {
         return '1ターン目に大地のエネルギーを吸収し、次のターンに特攻・特防・素早さを2段階ずつ上げる。パワフルハーブを持っている場合は溜めを省略する。';
+    }
+    if (DELAYED_ATTACK_MOVES.has(move.origName)) return '使用したターンにはダメージを与えず、2ターン後のターン終了時に、その時点で相手の場にいるポケモンへ攻撃する。';
+    if (RAMPAGE_MOVES.has(move.origName)) return '2～3ターンの間は技を選び直さず、この技を自動で繰り返す。攻撃が終わると混乱する。';
+    if (PIVOT_MOVES.has(move.origName)) return '攻撃が命中したあと、選んだ控えのポケモンと交代する。攻撃が外れた場合や無効化された場合は交代しない。';
+    if (move.origName === 'toxic') return '相手をもうどく状態にする。ターン終了時のダメージが1/16、2/16、3/16…と増えていく。';
+    if (CHARGE_ATTACK_TWO_TURN_MOVES.has(move.origName)) {
+        const skip = ['solar-beam','solar-blade'].includes(move.origName) ? '晴れでは溜めを省略する。' : move.origName === 'electro-shot' ? '雨では溜めを省略する。' : '';
+        return `1ターン目に力をため、次のターンに自動で攻撃する。パワフルハーブで溜めを省略できる。${skip}`;
     }
     if (move.origName === 'hidden-power') {
         const type = hiddenPowerType(pk);
@@ -2352,13 +2553,14 @@ async function buildPokemon(apiData) {
         modifiers: { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 },
         moves, item: null, origItem: null, status: 'none', statusTurns: 0, toxicCounter: 0, lockedMove: null, lastMove: null,
         lastDamageTaken: null, turnsActive: 0, megaOptions: [], megaProfile: null, megaPending: false, isMega: false, baseSnapshot: null,
-        stanceProfile: null, stanceForm: null, iceFaceProfile: null, iceFaceForm: null,
+        stanceProfile: null, stanceForm: null, iceFaceProfile: null, iceFaceForm: null, disguiseProfile: null, disguiseForm: null,
         abilityState: { proteanUsed: false, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false, intrepidUsed: false, dauntlessUsed: false },
         itemState: { metronomeMove: null, metronomeCount: 0 },
-        volatile: { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, seeded: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, mustRecharge: false, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null }
+        volatile: { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, seeded: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, mustRecharge: false, rampageMove: null, rampageTurns: 0, rampageTotal: 0, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null }
     };
     await prepareStanceChangeProfile(pokemon);
     await prepareIceFaceProfile(pokemon);
+    await prepareDisguiseProfile(pokemon);
     pokemon.megaOptions = getMegaOptions(pokemon);
     pokemon.item = chooseItem(pokemon);
     // しんかのきせきが実際に選ばれた場合だけ進化チェーンを確認する。
@@ -2438,6 +2640,7 @@ function resetPokemonForNewBattle(pk) {
     revertPrimalForm(pk);
     revertStanceChange(pk);
     if (pk.iceFaceProfile) applyIceFaceForm(pk, 'ice', null, false, true);
+    if (pk.disguiseProfile) applyDisguiseForm(pk, 'disguised', null, false, true);
     pk.stats.hp = pk.stats.maxHp;
     pk.status = 'none'; pk.statusTurns = 0; pk.toxicCounter = 0; pk.lockedMove = null; pk.lastMove = null; pk.lastDamageTaken = null; pk.turnsActive = 0;
     pk.item = pk.origItem;
@@ -2446,7 +2649,7 @@ function resetPokemonForNewBattle(pk) {
     pk.modifiers = { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 };
     pk.abilityState = { proteanUsed: false, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false };
     pk.itemState = { metronomeMove: null, metronomeCount: 0 };
-    pk.volatile = { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, seeded: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, mustRecharge: false, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null };
+    pk.volatile = { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, seeded: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, mustRecharge: false, rampageMove: null, rampageTurns: 0, rampageTotal: 0, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null };
     pk.moves.forEach(move => { move.pp = move.maxPp; });
 }
 
@@ -2473,6 +2676,8 @@ async function startDraftPhase() {
         const startButton = document.getElementById('btn-start-battle');
         startButton.disabled = true;
         startButton.onclick = async () => {
+            clearSessionCheckpoint({ clearStreak: true });
+            document.getElementById('streak').textContent = '0';
             State.playerTeam = selected.map(index => State.draftPool[index]);
             State.enemyTeam = await getRandomPokemonData(3);
             startBattlePhase();
@@ -2511,6 +2716,7 @@ function renderFieldStatus() {
         if (side.spikes) entries.push(`${label}まきびし×${side.spikes}`);
         if (side.toxicSpikes) entries.push(`${label}どくびし×${side.toxicSpikes}`);
         if (side.stickyWeb) entries.push(`${label}ねばねばネット`);
+        if (side.delayedAttack) entries.push(`${label}${side.delayedAttack.move?.name || '未来攻撃'}（あと${Math.max(1, side.delayedAttack.turns - 1)}ターン）`);
     };
     addSide(State.field.player, '自陣');
     addSide(State.field.enemy, '敵陣');
@@ -2522,6 +2728,7 @@ function renderFieldStatus() {
 
 function getLegalMoves(pk) {
     let moves = pk.moves.filter(move => move.pp > 0);
+    if (pk.volatile?.rampageMove) moves = moves.filter(move => move.origName === pk.volatile.rampageMove.origName);
     if (pk.lockedMove) moves = moves.filter(move => move.origName === pk.lockedMove);
     if (pk.volatile.disabledMove && pk.volatile.disableTurns > 0) moves = moves.filter(move => move.origName !== pk.volatile.disabledMove);
     if (hasItem(pk, 'assault-vest') || pk.volatile.taunt > 0) moves = moves.filter(move => move.category !== 'status');
@@ -2564,6 +2771,7 @@ function updateBattleUI() {
         ${player.volatile.confused ? `<div class="volatile-note">混乱</div>` : ''}
         ${player.volatile.infatuatedBy ? `<div class="volatile-note">メロメロ</div>` : ''}
         ${player.volatile.mustRecharge ? `<div class="volatile-note">反動で次のターンは行動不能</div>` : ''}
+        ${player.volatile.rampageMove ? `<div class="volatile-note">${escapeHTML(player.volatile.rampageMove.name)}を連続使用中（残り${player.volatile.rampageTurns}ターン）</div>` : ''}
         <div class="stat-badges">${renderStatBadges(player)}</div>`;
     document.getElementById('enemy-status').innerHTML = `
         <div class="status-name">${escapeHTML(enemy.name)} ${renderStatusIndicator(enemy)}</div>
@@ -2574,6 +2782,7 @@ function updateBattleUI() {
         ${enemy.volatile.confused ? `<div class="volatile-note">混乱</div>` : ''}
         ${enemy.volatile.infatuatedBy ? `<div class="volatile-note">メロメロ</div>` : ''}
         ${enemy.volatile.mustRecharge ? `<div class="volatile-note">反動で次のターンは行動不能</div>` : ''}
+        ${enemy.volatile.rampageMove ? `<div class="volatile-note">${escapeHTML(enemy.volatile.rampageMove.name)}を連続使用中</div>` : ''}
         <div class="stat-badges">${renderStatBadges(enemy)}</div>`;
     renderFieldStatus();
 
@@ -2597,11 +2806,16 @@ function updateBattleUI() {
         const shownType = effectiveMoveType(player, move);
         button.innerHTML = `<div>${escapeHTML(move.name)}</div><div class="move-meta">${escapeHTML(TYPE_NAMES[shownType] || 'タイプ名未取得')}｜${escapeHTML(MOVE_CATEGORY_NAMES[move.category] || '分類不明')}｜威力:${displayedMovePower(player, move)}／命中:${move.accuracy ?? '-'}／残り:${pp}</div><div class="move-description">${escapeHTML(moveDescription(player, move))}</div>`;
         const batonTargets = move.origName === 'baton-pass' ? availableBatonPassTargets(true) : [];
+        const pivotTargets = PIVOT_MOVES.has(move.origName) ? availablePivotTargets(true) : [];
         button.disabled = !legalNames.has(move.origName) || isAnimating || (move.origName === 'baton-pass' && !batonTargets.length);
         button.onclick = async () => {
             if (isAnimating) return;
             if (move.origName === 'baton-pass') {
                 renderBatonPassPanel(move, batonTargets);
+                return;
+            }
+            if (PIVOT_MOVES.has(move.origName) && pivotTargets.length) {
+                renderPivotMovePanel(move, pivotTargets);
                 return;
             }
             isAnimating = true;
@@ -2663,6 +2877,9 @@ function renderSwitchControls(player) {
     const abilityTrapped = !hasItem(player, 'shed-shell') && foe?.stats.hp > 0 && ((hasAbility(foe, 'shadow-tag') && !hasAbility(player, 'shadow-tag')) || (hasAbility(foe, 'arena-trap') && isGrounded(player)) || (hasAbility(foe, 'magnet-pull') && player.types.includes('steel')));
     if (player.volatile.mustRecharge) {
         button.textContent = '交代できません（反動で動けない）';
+        button.disabled = true;
+    } else if (player.volatile.rampageMove) {
+        button.textContent = `交代できません（${player.volatile.rampageMove.name}を連続使用中）`;
         button.disabled = true;
     } else if (player.volatile.trapped > 0 || abilityTrapped) {
         button.textContent = abilityTrapped ? `交代できません（${abilityName(foe.ability)}）` : '交代できません（拘束中）';
@@ -2740,11 +2957,47 @@ function renderBatonPassPanel(move, candidates = null) {
     panel.classList.remove('hidden');
 }
 
+function availablePivotTargets(isPlayer) {
+    const team = isPlayer ? State.playerTeam : State.enemyTeam;
+    const activeIndex = isPlayer ? State.activePlayerIdx : State.activeEnemyIdx;
+    return team.map((pk, index) => ({ pk, index })).filter(entry => entry.index !== activeIndex && entry.pk.stats.hp > 0);
+}
+function renderPivotMovePanel(move, candidates = null) {
+    const panel = document.getElementById('switch-panel');
+    if (!panel) return;
+    const entries = candidates || availablePivotTargets(true);
+    panel.innerHTML = `<div class="switch-panel-title">${escapeHTML(move.name)}の交代先を選んでください</div>`;
+    for (const { pk: pokemon, index } of entries) {
+        const button = document.createElement('button');
+        button.className = 'switch-option';
+        button.type = 'button';
+        const typeText = pokemon.types.map(type => TYPE_NAMES[type] || 'タイプ名未取得').join('・');
+        button.innerHTML = `<span>${escapeHTML(pokemon.name)}<br><small>${escapeHTML(typeText)}／${escapeHTML(STATUS_NAMES[pokemon.status] || '正常')}</small></span><span>体力 ${Math.max(0, pokemon.stats.hp)}/${pokemon.stats.maxHp}</span>`;
+        button.onclick = async () => {
+            if (isAnimating) return;
+            isAnimating = true;
+            disableMoveButtons();
+            panel.classList.add('hidden');
+            await executeTurn({ ...move, sourceMove: move, pivotTargetIndex: index });
+            isAnimating = false;
+            updateBattleUI();
+        };
+        panel.appendChild(button);
+    }
+    const cancel = document.createElement('button');
+    cancel.className = 'switch-cancel';
+    cancel.type = 'button';
+    cancel.textContent = '交代技をやめる';
+    cancel.onclick = () => panel.classList.add('hidden');
+    panel.appendChild(cancel);
+    panel.classList.remove('hidden');
+}
+
 function disableMoveButtons() {
     document.querySelectorAll('#battle-moves button, #mega-controls button, #switch-controls button, #switch-panel button').forEach(button => { button.disabled = true; });
 }
 
-async function startBattlePhase() {
+async function startBattlePhase(options = {}) {
     State.gameEnded = false;
     State.battleResolved = false;
     State.activePlayerIdx = State.playerTeam.findIndex(pk => pk.stats.hp > 0);
@@ -2763,7 +3016,9 @@ async function startBattlePhase() {
     nextButton.textContent = '次へ進む';
     const openingPlayer = State.playerTeam[State.activePlayerIdx];
     const openingEnemy = State.enemyTeam[State.activeEnemyIdx];
-    logMsg('⚔️ <b>バトル開始！</b>', true);
+    // 強制リロード時に戻れるよう、開始時点を1件だけ保存する。毎ターンの保存は行わない。
+    saveSessionCheckpoint('battle');
+    logMsg(options.restoringCheckpoint ? '↩️ <b>直前のバトルを開始時点から再開！</b>' : '⚔️ <b>バトル開始！</b>', true);
     logMsg(`相手は <b>${escapeHTML(openingEnemy.name)}</b> を繰り出した！`);
     logMsg(`ゆけっ！ <b>${escapeHTML(openingPlayer.name)}</b>！`);
     await ensureBattleEntryForm(openingPlayer);
@@ -3455,10 +3710,30 @@ function scoreEnemyMove(enemy, player, move, context = {}) {
         if (estimatedAccuracy(enemy, player, move) < 0.75) score -= 2;
         if (effectivePriority(enemy, move) > 0 && damage >= player.stats.hp) score += 6;
         if (move.drain > 0 && enemy.stats.hp < enemy.stats.maxHp * 0.65) score += 3;
-        if (move.drain < 0 && enemy.stats.hp < enemy.stats.maxHp * 0.25) score -= 5;
+        if (isFixedMaxHpRecoilMove(move)) {
+            const recoil = Math.ceil(enemy.stats.maxHp / 2);
+            if (!hasAbility(enemy, 'magic-guard')) {
+                score -= enemy.stats.hp <= recoil ? (damage >= player.stats.hp ? 4 : 22) : 6;
+            }
+        } else if (move.drain < 0 && enemy.stats.hp < enemy.stats.maxHp * 0.25) score -= 5;
         if (SELF_DESTRUCT_MOVES.has(move.origName) && State.enemyTeam.filter(pk => pk.stats.hp > 0).length > 1 && player.stats.hp > damage) score -= 12;
         if (context.playerSwitching && move.origName === 'pursuit') score += 22;
         if (hasAbility(enemy, 'stance-change') && enemy.stanceForm === 'shield') score += 1.5;
+        if (PIVOT_MOVES.has(move.origName)) {
+            const target = choosePivotTarget(enemy, false);
+            const currentMatchup = matchupScore(enemy, player, true);
+            const nextMatchup = target ? matchupScore(target.pk, player, true) : currentMatchup;
+            score += target ? Math.max(-2, nextMatchup - currentMatchup) + (enemy.stats.hp < enemy.stats.maxHp * 0.45 ? 4 : 1) : -14;
+            if (hasAbility(enemy, 'regenerator') && enemy.stats.hp < enemy.stats.maxHp) score += 5;
+        }
+        if (RAMPAGE_MOVES.has(move.origName)) {
+            score += damage >= player.stats.hp ? 5 : -1;
+            if (State.playerTeam.filter(pk => pk.stats.hp > 0).length > 1 && getAttackTypeMultiplier(enemy, effectiveMoveType(enemy, move), player, move) < 1) score -= 6;
+        }
+        if (TWO_TURN_MOVES.has(move.origName) && !shouldSkipCharge(enemy, move)) {
+            score -= threatDamage >= enemy.stats.hp ? 24 : threatDamage >= enemy.stats.hp * 0.55 ? 11 : 3;
+        }
+        if (DELAYED_ATTACK_MOVES.has(move.origName)) score += foeField(false).delayedAttack ? -20 : 2;
     } else {
         score += statusMoveScore(enemy, player, move, threatDamage);
     }
@@ -3481,8 +3756,22 @@ function weightedNearBest(scored) {
     return pool[0];
 }
 
+function choosePivotTarget(atk, isPlayer, preferredIndex = null) {
+    const candidates = availablePivotTargets(isPlayer);
+    if (!candidates.length) return null;
+    if (Number.isInteger(preferredIndex)) {
+        const preferred = candidates.find(entry => entry.index === preferredIndex);
+        if (preferred) return preferred;
+    }
+    const foe = isPlayer ? State.enemyTeam[State.activeEnemyIdx] : State.playerTeam[State.activePlayerIdx];
+    return candidates
+        .map(entry => ({ ...entry, score: matchupScore(entry.pk, foe, !isPlayer) + entry.pk.stats.hp / Math.max(1, entry.pk.stats.maxHp) * 2 }))
+        .sort((a, b) => b.score - a.score)[0];
+}
+
 function chooseEnemyMove(enemy, context = {}) {
     if (enemy?.volatile?.mustRecharge) return { ...RECHARGE_ACTION };
+    if (enemy?.volatile?.rampageMove) return { ...enemy.volatile.rampageMove, sourceMove: enemy.volatile.rampageMove, isRampageContinuation: true, pp: Infinity };
     if (enemy?.volatile?.chargingMove) return enemy.volatile.chargingMove;
     const player = State.playerTeam[State.activePlayerIdx];
     const legal = getLegalMoves(enemy);
@@ -3491,11 +3780,16 @@ function chooseEnemyMove(enemy, context = {}) {
         const target = chooseBatonPassTarget(enemy, false);
         if (target) return { ...chosen.move, sourceMove: chosen.move, batonPassTargetIndex: target.index };
     }
+    if (chosen?.move && PIVOT_MOVES.has(chosen.move.origName)) {
+        const target = choosePivotTarget(enemy, false);
+        if (target) return { ...chosen.move, sourceMove: chosen.move, pivotTargetIndex: target.index };
+    }
     return chosen?.move || { ...STRUGGLE_MOVE };
 }
 
 function chooseEnemyAction(enemy, context = {}) {
     if (enemy?.volatile?.mustRecharge) return { type: 'move', move: { ...RECHARGE_ACTION } };
+    if (enemy?.volatile?.rampageMove) return { type: 'move', move: { ...enemy.volatile.rampageMove, sourceMove: enemy.volatile.rampageMove, isRampageContinuation: true, pp: Infinity } };
     if (enemy?.volatile?.chargingMove) return { type: 'move', move: enemy.volatile.chargingMove };
     const player = State.playerTeam[State.activePlayerIdx];
     const switchDecision = context.allowSwitch === false ? null : evaluateEnemySwitch(enemy, player);
@@ -3609,8 +3903,29 @@ function calculateConfusionDamage(pk) {
     return Math.floor((((22 * 40 * attack / defense) / 50) + 2) * (0.85 + Math.random() * 0.15));
 }
 
+function shouldSkipCharge(pk, move) {
+    if (!pk || !move) return false;
+    if (hasItem(pk, 'power-herb')) return 'power-herb';
+    const weather = effectiveWeatherFor(pk);
+    if (['solar-beam', 'solar-blade'].includes(move.origName) && weather === 'sun') return 'sun';
+    if (move.origName === 'electro-shot' && weather === 'rain') return 'rain';
+    return false;
+}
+function applyChargePreparationEffect(pk, move) {
+    if (!pk || !move) return false;
+    let applied = false;
+    if (move.origName === 'skull-bash') { changeStat(pk, 'defense', 1, pk); applied = true; }
+    if (['meteor-beam', 'electro-shot'].includes(move.origName)) { changeStat(pk, 'special-attack', 1, pk); applied = true; }
+    // PokeAPIの自己能力上昇データが、解放ターンにもう一度適用されないよう印を付ける。
+    if (applied) move.chargeStatPreApplied = true;
+    return applied;
+}
 function prepareTurnMove(pk, selectedMove) {
     if (pk?.volatile?.mustRecharge) return { ...RECHARGE_ACTION };
+    if (pk?.volatile?.rampageMove) {
+        const storedMove = pk.volatile.rampageMove;
+        return { ...storedMove, sourceMove: storedMove, isRampageContinuation: true, pp: Infinity };
+    }
     if (pk?.volatile?.chargingMove) {
         const storedMove = pk.volatile.chargingMove;
         const releaseMove = { ...storedMove, sourceMove: storedMove, isChargeRelease: true, pp: Infinity };
@@ -3621,9 +3936,40 @@ function prepareTurnMove(pk, selectedMove) {
     }
     if (!selectedMove) return { ...STRUGGLE_MOVE };
     if (!TWO_TURN_MOVES.has(selectedMove.origName)) return selectedMove;
-    if (hasItem(pk, 'power-herb')) return { ...selectedMove, sourceMove: selectedMove, usePowerHerb: true };
+    const skipReason = shouldSkipCharge(pk, selectedMove);
+    if (skipReason) return { ...selectedMove, sourceMove: selectedMove, usePowerHerb: skipReason === 'power-herb', chargeSkipReason: skipReason };
     return { ...selectedMove, sourceMove: selectedMove, isChargeSetup: true };
 }
+function clearRampageState(pk) {
+    if (!pk?.volatile) return;
+    pk.volatile.rampageMove = null;
+    pk.volatile.rampageTurns = 0;
+    pk.volatile.rampageTotal = 0;
+}
+function startRampageIfNeeded(pk, move) {
+    if (!pk || !move || !RAMPAGE_MOVES.has(move.origName) || move.isRampageContinuation || pk.volatile.rampageMove) return;
+    const total = 2 + Math.floor(Math.random() * 2);
+    pk.volatile.rampageMove = move.sourceMove || move;
+    pk.volatile.rampageTurns = total;
+    pk.volatile.rampageTotal = total;
+    logMsg(`🔥 ${escapeHTML(pk.name)} は${total}ターンの間、${escapeHTML(move.name)}を繰り返す！`);
+}
+function finishRampageTurn(pk) {
+    if (!pk?.volatile?.rampageMove) return;
+    pk.volatile.rampageTurns = Math.max(0, pk.volatile.rampageTurns - 1);
+    if (pk.volatile.rampageTurns > 0 && pk.stats.hp > 0) return;
+    const moveName = pk.volatile.rampageMove.name;
+    clearRampageState(pk);
+    if (pk.stats.hp <= 0) return;
+    if (hasAbility(pk, 'own-tempo')) {
+        logMsg(`🌀 ${escapeHTML(pk.name)} は マイペース で混乱しない！`);
+        return;
+    }
+    pk.volatile.confused = Math.max(pk.volatile.confused || 0, 2 + Math.floor(Math.random() * 4));
+    logMsg(`💫 ${escapeHTML(pk.name)} は ${escapeHTML(moveName)} の反動で混乱した！`);
+    triggerBerries(pk);
+}
+
 function updateProtectChainForSelection(pk, move) {
     if (!PROTECT_MOVES.has(move?.origName)) pk.volatile.protectChain = 0;
 }
@@ -3689,6 +4035,10 @@ async function executeTurn(playerMove, options = {}) {
         logMsg(`⏩ ${escapeHTML(currentPlayer.name)} は次のターンも ${escapeHTML(currentPlayer.volatile.chargingMove.name)} を続ける！`);
         await sleep(550);
         await executeTurn(null, { automaticCharge: true });
+    } else if (!State.gameEnded && !State.battleResolved && currentPlayer?.stats.hp > 0 && currentPlayer.volatile.rampageMove) {
+        logMsg(`🔥 ${escapeHTML(currentPlayer.name)} は次のターンも ${escapeHTML(currentPlayer.volatile.rampageMove.name)} を続ける！`);
+        await sleep(550);
+        await executeTurn(null, { automaticRampage: true });
     }
 }
 
@@ -3788,12 +4138,16 @@ async function executeEnemySwitchTurn(targetIndex, playerMove, reason = '') {
         logMsg(`⏩ ${escapeHTML(currentPlayer.name)} は次のターンも ${escapeHTML(currentPlayer.volatile.chargingMove.name)} を続ける！`);
         await sleep(550);
         await executeTurn(null, { automaticCharge: true });
+    } else if (!State.gameEnded && !State.battleResolved && currentPlayer?.stats.hp > 0 && currentPlayer.volatile.rampageMove) {
+        logMsg(`🔥 ${escapeHTML(currentPlayer.name)} は次のターンも ${escapeHTML(currentPlayer.volatile.rampageMove.name)} を続ける！`);
+        await sleep(550);
+        await executeTurn(null, { automaticRampage: true });
     }
 }
 
 async function executeSwitchTurn(targetIndex) {
     const outgoing = State.playerTeam[State.activePlayerIdx];
-    if (outgoing?.volatile?.mustRecharge) return;
+    if (outgoing?.volatile?.mustRecharge || outgoing?.volatile?.rampageMove) return;
     const target = State.playerTeam[targetIndex];
     const enemy = State.enemyTeam[State.activeEnemyIdx];
     const ghostCanEscape = outgoing?.types.includes('ghost');
@@ -3970,12 +4324,19 @@ async function performAction(atk, def, move, isPlayer) {
     if (!reflectedAction && !calledBySleepTalk && !canAct(atk, move)) {
         if (PROTECT_MOVES.has(move.origName)) atk.volatile.protectChain = 0;
         if (move.isChargeSetup || move.isChargeRelease) clearChargeState(atk);
+        if (move.isRampageContinuation || atk.volatile.rampageMove) finishRampageTurn(atk);
         updateBattleUI(); await sleep(500); return;
     }
     if (move.isChargeRelease) clearChargeState(atk);
     if (move.usePowerHerb && hasItem(atk, 'power-herb')) {
         consumeHeldItem(atk);
+        applyChargePreparationEffect(atk, move);
         logMsg(`🌿 ${escapeHTML(atk.name)} は パワフルハーブ で力をためずに攻撃する！`);
+    } else if (move.chargeSkipReason === 'sun') {
+        logMsg(`☀️ ${escapeHTML(atk.name)} は強い日差しで力をためずに攻撃する！`);
+    } else if (move.chargeSkipReason === 'rain') {
+        applyChargePreparationEffect(atk, move);
+        logMsg(`🌧️ ${escapeHTML(atk.name)} は雨の電気を吸収してすぐに攻撃する！`);
     }
     if (!reflectedAction && (hasItem(atk, 'assault-vest') || atk.volatile.taunt > 0) && move.category === 'status') {
         if (PROTECT_MOVES.has(move.origName)) atk.volatile.protectChain = 0;
@@ -3993,6 +4354,8 @@ async function performAction(atk, def, move, isPlayer) {
     }
     logMsg(`▶️ <b>${escapeHTML(atk.name)}</b> の <b>${escapeHTML(move.name)}</b>！`);
     atk.lastMove = move.origName;
+    // あばれる系は技を出し始めた時点で2～3ターン固定。外れ・防御・無効でも継続ターンを消費する。
+    startRampageIfNeeded(atk, move);
     if (!reflectedAction && !calledBySleepTalk && CHOICE_ITEMS.has(atk.item) && itemEffectActive(atk) && !atk.lockedMove) atk.lockedMove = move.origName;
     await sleep(350);
 
@@ -4000,10 +4363,12 @@ async function performAction(atk, def, move, isPlayer) {
     const primalActive = getActivePokemon();
     if (effectiveMoveType(atk, move) === 'water' && primalWeather === 'sun' && primalActive.some(pk => hasAbility(pk, 'desolate-land'))) {
         logMsg('☀️ おわりのだいちで みず技が蒸発した！');
+        if (atk.volatile.rampageMove) finishRampageTurn(atk);
         return;
     }
     if (effectiveMoveType(atk, move) === 'fire' && primalWeather === 'rain' && primalActive.some(pk => hasAbility(pk, 'primordial-sea'))) {
         logMsg('🌧️ はじまりのうみで ほのお技が消えた！');
+        if (atk.volatile.rampageMove) finishRampageTurn(atk);
         return;
     }
     if (move.origName === 'snore' && atk.status !== 'slp') {
@@ -4032,15 +4397,27 @@ async function performAction(atk, def, move, isPlayer) {
     }
 
     if (move.isChargeSetup) {
-        atk.volatile.chargingMove = move.sourceMove || move;
-        // ジオコントロールは溜め中も攻撃を受ける。姿を隠す技だけ無敵状態にする。
+        const storedChargeMove = { ...(move.sourceMove || move) };
+        applyChargePreparationEffect(atk, storedChargeMove);
+        atk.volatile.chargingMove = storedChargeMove;
+        // 姿を隠す技だけ無敵状態。その他の溜め技は通常どおり攻撃を受ける。
         atk.volatile.semiInvulnerable = INVULNERABLE_TWO_TURN_MOVES.has(move.origName) ? move.origName : false;
         logMsg(`🌀 ${escapeHTML(atk.name)} は ${escapeHTML(TWO_TURN_CHARGE_MESSAGES[move.origName] || '力をためている！')}`);
         updateBattleUI();
         return;
     }
+    if (DELAYED_ATTACK_MOVES.has(move.origName)) {
+        scheduleDelayedAttack(atk, move, isPlayer);
+        finishRampageTurn(atk);
+        updateBattleUI();
+        await sleep(350);
+        return;
+    }
     if (isTargetingOpponent(move) && def.volatile.semiInvulnerable) {
         logMsg(`🌫️ ${escapeHTML(def.name)} は姿を隠していて技が当たらない！`);
+        applyFixedMaxHpRecoil(atk, move);
+        if (atk.volatile.rampageMove) finishRampageTurn(atk);
+        updateBattleUI();
         return;
     }
 
@@ -4086,21 +4463,29 @@ async function performAction(atk, def, move, isPlayer) {
             changeStat(atk, 'speed', 2, atk);
             logMsg(`🏃 ${escapeHTML(atk.name)} は からぶりほけん で素早さが上がった！`);
         }
+        applyFixedMaxHpRecoil(atk, move);
+        if (atk.volatile.rampageMove) finishRampageTurn(atk);
         updateBattleUI(); await sleep(450); return;
     }
 
     if (isTargetingOpponent(move) && def.volatile.protecting && !['feint', 'hyperspace-fury', 'hyperspace-hole', 'phantom-force', 'shadow-force'].includes(move.origName)) {
         logMsg(`🛡️ ${escapeHTML(def.name)} は攻撃から身を守った！`);
         applyProtectContactEffect(atk, def, move, def.volatile.protectMove);
+        applyFixedMaxHpRecoil(atk, move);
+        if (atk.volatile.rampageMove) finishRampageTurn(atk);
+        updateBattleUI();
         return;
     }
     if (move.origName === 'feint' && def.volatile.protecting) { def.volatile.protecting = false; def.volatile.protectMove = null; }
 
     if (effectiveMoveType(atk, move) === 'ground' && hasItem(def, 'air-balloon')) {
         logMsg(`🎈 ${escapeHTML(def.name)} は ふうせんで浮いているため当たらない！`);
+        if (atk.volatile.rampageMove) finishRampageTurn(atk);
         return;
     }
     if (isTargetingOpponent(move) && handleAbilityImmunity(atk, def, move)) {
+        applyFixedMaxHpRecoil(atk, move);
+        if (atk.volatile.rampageMove) finishRampageTurn(atk);
         updateBattleUI(); await sleep(350); return;
     }
     if (move.category === 'status' && await handleSpecialStatusMove(atk, def, move, isPlayer)) {
@@ -4133,6 +4518,12 @@ async function performAction(atk, def, move, isPlayer) {
                 if (hit === 0) logMsg(`🚫 ${escapeHTML(def.name)} には効果がないみたいだ…`);
                 break;
             }
+            if (tryDisguiseBlock(def, atk, move, isPlayer)) {
+                landedHit = true;
+                updateBattleUI();
+                await sleep(hits > 1 ? 180 : 400);
+                continue;
+            }
             if (tryIceFaceBlock(def, atk, move, isPlayer)) {
                 landedHit = true;
                 updateBattleUI();
@@ -4159,6 +4550,8 @@ async function performAction(atk, def, move, isPlayer) {
         if (hits > 1 && landedHit) logMsg(`🔁 ${hits}回当たった！`);
         triggerBerserkAfterMove(def, atk, defenderHpBeforeMove, landedHit);
         if (landedHit) await applyDamageAftermath(atk, def, move, totalDamage, directDamage, typeMod, isPlayer);
+        // てっていこうせんは命中・無効・みがわり等に関係なく、技を試みた時点で固定反動を受ける。
+        applyFixedMaxHpRecoil(atk, move);
     } else if (move.healing > 0) {
         const healingTarget = ['user', 'user-and-allies', 'all-allies'].includes(move.target) ? atk : def;
         let healingRate = move.healing;
@@ -4191,6 +4584,10 @@ async function performAction(atk, def, move, isPlayer) {
         logMsg(`💥 ${escapeHTML(atk.name)} は倒れた！（自己犠牲）`);
     }
     await processPendingHeldItemSwitches();
+    if (PIVOT_MOVES.has(move.origName) && landedHit && atk.stats.hp > 0) {
+        await performPivotSwitch(atk, isPlayer, move.pivotTargetIndex);
+    }
+    finishRampageTurn(atk);
     if (def.stats.hp <= 0) triggerFaintAbilities(def, atk, move);
     updateBattleUI();
 }
@@ -4449,6 +4846,7 @@ function calculateDamage(atk, def, move, isPlayer, hitIndex = 0) {
     const activeWeather = (hasItem(atk, 'utility-umbrella') || hasItem(def, 'utility-umbrella')) ? 'none' : effectiveWeatherName();
     if (activeWeather === 'rain') modifier *= moveType === 'water' ? 1.5 : moveType === 'fire' ? 0.5 : 1;
     if (activeWeather === 'sun') modifier *= moveType === 'fire' ? 1.5 : moveType === 'water' ? 0.5 : 1;
+    if (['solar-beam', 'solar-blade'].includes(move.origName) && ['rain', 'sandstorm', 'hail', 'snow'].includes(activeWeather)) modifier *= 0.5;
     if (State.field.terrain.name === 'electric' && moveType === 'electric' && isGrounded(atk)) modifier *= 1.3;
     if (State.field.terrain.name === 'grassy' && moveType === 'grass' && isGrounded(atk)) modifier *= 1.3;
     if (State.field.terrain.name === 'psychic' && moveType === 'psychic' && isGrounded(atk)) modifier *= 1.3;
@@ -4576,7 +4974,7 @@ async function applyDamageAftermath(atk, def, move, totalDamage, directDamage, t
         changeStat(def, 'special-attack', 2, def);
         logMsg(`🛡️ ${escapeHTML(def.name)} は じゃくてんほけん で能力が上がった！`);
     }
-    if (move.drain !== 0 && totalDamage > 0) {
+    if (move.drain !== 0 && totalDamage > 0 && !isFixedMaxHpRecoilMove(move)) {
         let amount = Math.floor(totalDamage * Math.abs(move.drain) / 100);
         if (move.drain > 0) {
             if (hasAbility(def, 'liquid-ooze') && !hasAbility(atk, 'magic-guard')) {
@@ -4702,6 +5100,7 @@ function triggerWhiteHerb(pk) {
 async function applyMoveStatChanges(atk, def, move, context = {}) {
     if (!move.statChanges.length) return;
     const target = move.statChangeTarget === 'user' || ['user', 'user-and-allies', 'users-field'].includes(move.target) ? atk : def;
+    if (move.chargeStatPreApplied && target === atk && ['skull-bash', 'meteor-beam', 'electro-shot'].includes(move.origName)) return;
     if (target === def && move.category !== 'status' && context.landedHit && context.directDamage <= 0) return;
     const statChance = move.category === 'status' ? 100 : (hasAbility(atk, 'serene-grace') ? Math.min(100, (move.statChance || 100) * 2) : (move.statChance || 100));
     const shouldApply = move.category === 'status' || chance(statChance);
@@ -4759,7 +5158,8 @@ async function applyMoveAilment(atk, def, move, landedHit, directDamage = 0) {
     const ailmentChance = hasAbility(atk, 'serene-grace') ? Math.min(100, (move.ailmentChance || 100) * 2) : (move.ailmentChance || 100);
     if (!chance(ailmentChance)) return;
     const map = { paralysis: 'par', burn: 'brn', poison: 'psn', 'bad-poison': 'tox', sleep: 'slp', freeze: 'frz' };
-    if (map[move.effect]) applyMajorStatus(def, map[move.effect], atk);
+    const resolvedStatus = move.origName === 'toxic' ? 'tox' : map[move.effect];
+    if (resolvedStatus) applyMajorStatus(def, resolvedStatus, atk);
     else if (move.effect === 'confusion' && def.volatile.confused === 0) {
         if (hasAbility(def, 'own-tempo')) { logMsg(`🌀 ${escapeHTML(def.name)} は マイペース で混乱しない！`); return; }
         def.volatile.confused = 2 + Math.floor(Math.random() * 4);
@@ -4813,6 +5213,18 @@ function tryProtectMove(atk, move) {
     atk.volatile.protectChain = chain + 1;
     logMsg(`🛡️ ${escapeHTML(atk.name)} は守りの体勢に入った！`);
     return true;
+}
+
+async function performPivotSwitch(atk, isPlayer, preferredIndex = null) {
+    const active = isPlayer ? State.playerTeam[State.activePlayerIdx] : State.enemyTeam[State.activeEnemyIdx];
+    if (active !== atk || atk.stats.hp <= 0) return false;
+    const target = choosePivotTarget(atk, isPlayer, preferredIndex);
+    if (!target) return false;
+    logMsg(`🔄 ${escapeHTML(atk.name)} は攻撃後に戻る！`);
+    const incoming = isPlayer
+        ? await switchPlayerTo(target.index, { pivot: true })
+        : await switchEnemyTo(target.index, `${atk.name}の交代技`, { pivot: true });
+    return Boolean(incoming);
 }
 
 async function performBatonPass(atk, isPlayer, preferredIndex = null) {
@@ -5002,6 +5414,65 @@ function triggerBerries(pk) {
     }
 }
 
+function delayedAttackSourceSnapshot(atk) {
+    return {
+        name: atk.name, speciesKey: atk.speciesKey, types: [...atk.types], originalTypes: [...(atk.originalTypes || atk.types)],
+        battleBaseTypes: [...(atk.battleBaseTypes || atk.types)], ability: atk.ability, item: atk.item, status: atk.status,
+        stats: { ...atk.stats }, modifiers: { ...atk.modifiers }, ivs: { ...(atk.ivs || {}) }, weight: atk.weight, gender: atk.gender, turnsActive: atk.turnsActive || 0,
+        volatile: { focusEnergy: atk.volatile?.focusEnergy || 0, flashFire: Boolean(atk.volatile?.flashFire) },
+        abilityState: { ...(atk.abilityState || {}) }, itemState: { ...(atk.itemState || {}) }
+    };
+}
+function scheduleDelayedAttack(atk, move, isPlayer) {
+    const foeSide = foeField(isPlayer);
+    if (foeSide.delayedAttack) {
+        logMsg('❌ すでに未来の攻撃が相手の場を狙っている！');
+        return false;
+    }
+    foeSide.delayedAttack = {
+        turns: 3,
+        sourceIsPlayer: isPlayer,
+        source: delayedAttackSourceSnapshot(atk),
+        move: { ...move, pp: Infinity, sourceMove: null }
+    };
+    logMsg(`🔮 ${escapeHTML(atk.name)} は未来に攻撃を予知した！`);
+    return true;
+}
+async function resolveDelayedAttacks() {
+    for (const [targetIsPlayer, side] of [[true, State.field.player], [false, State.field.enemy]]) {
+        const pending = side.delayedAttack;
+        if (!pending) continue;
+        pending.turns--;
+        if (pending.turns > 0) continue;
+        side.delayedAttack = null;
+        const target = targetIsPlayer ? State.playerTeam[State.activePlayerIdx] : State.enemyTeam[State.activeEnemyIdx];
+        const source = pending.source;
+        const move = pending.move;
+        if (!target || target.stats.hp <= 0) continue;
+        logMsg(`🔮 ${escapeHTML(move.name)} が ${escapeHTML(target.name)} に襲いかかった！`);
+        if (target.volatile.protecting) {
+            logMsg(`🛡️ ${escapeHTML(target.name)} は未来の攻撃から身を守った！`);
+            continue;
+        }
+        if (handleAbilityImmunity(source, target, move)) continue;
+        const result = calculateDamage(source, target, move, pending.sourceIsPlayer, 0);
+        if (result.missedByImmunity) {
+            logMsg(`🚫 ${escapeHTML(target.name)} には効果がないみたいだ…`);
+            continue;
+        }
+        if (tryDisguiseBlock(target, source, move, !targetIsPlayer)) continue;
+        if (tryIceFaceBlock(target, source, move, !targetIsPlayer)) continue;
+        const dealt = dealDamage(target, result.damage, { atk: source, move, isPlayer: targetIsPlayer, typeMod: result.typeMod, isCritical: result.isCritical });
+        if (result.isCritical) logMsg('<span class="log-hit">🎯 急所に当たった！</span>');
+        if (result.typeMod > 1) logMsg('<span class="log-eff">💥 効果はばつぐんだ！</span>');
+        else if (result.typeMod < 1) logMsg('<span class="log-eff">📉 効果はいまひとつだ…</span>');
+        if (dealt.hp > 0) await applyAbilityOnDamagingHit(source, target, move, dealt, result, pending.sourceIsPlayer);
+        if (target.stats.hp <= 0) triggerFaintAbilities(target, source, move);
+        updateBattleUI();
+        await sleep(300);
+    }
+}
+
 async function applyEndTurnEffects() {
     const player = State.playerTeam[State.activePlayerIdx];
     const enemy = State.enemyTeam[State.activeEnemyIdx];
@@ -5067,6 +5538,7 @@ async function applyEndTurnEffects() {
         updateBattleUI();
         await sleep(180);
     }
+    await resolveDelayedAttacks();
 }
 function damageEndTurn(pk, amount, source) {
     if (hasAbility(pk, 'magic-guard')) { logMsg(`✨ ${escapeHTML(pk.name)} は マジックガード で間接ダメージを防いだ！`); return 0; }
@@ -5143,7 +5615,7 @@ function resetOnSwitch(pk, isLeaving = true) {
     if (isLeaving && hasAbility(pk, 'regenerator') && pk.stats.hp > 0) pk.stats.hp = Math.min(pk.stats.maxHp, pk.stats.hp + Math.floor(pk.stats.maxHp / 3));
     pk.types = pk.isMega && pk.megaProfile ? [...pk.megaProfile.types] : [...(pk.battleBaseTypes || pk.originalTypes || pk.types)];
     pk.modifiers = { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 };
-    pk.volatile.flinch = false; pk.volatile.protecting = false; pk.volatile.protectMove = null; pk.volatile.protectChain = 0; clearChargeState(pk); pk.volatile.mustRecharge = false; pk.volatile.confused = 0; pk.volatile.infatuatedBy = null; pk.volatile.taunt = 0; pk.volatile.trapped = 0; pk.volatile.trappedBy = null;
+    pk.volatile.flinch = false; pk.volatile.protecting = false; pk.volatile.protectMove = null; pk.volatile.protectChain = 0; clearChargeState(pk); clearRampageState(pk); pk.volatile.mustRecharge = false; pk.volatile.confused = 0; pk.volatile.infatuatedBy = null; pk.volatile.taunt = 0; pk.volatile.trapped = 0; pk.volatile.trappedBy = null;
     pk.volatile.seeded = false; pk.volatile.saltCure = false; pk.volatile.substitute = 0; pk.volatile.perish = 0;
     pk.volatile.micle = false; pk.volatile.focusEnergy = 0; pk.volatile.flashFire = false; pk.volatile.disabledMove = null; pk.volatile.disableTurns = 0; pk.volatile.faintEventProcessed = false; pk.volatile.lastHitCritical = false; pk.volatile.pendingItemSwitch = null;
     pk.abilityState.proteanUsed = false; pk.abilityState.unburden = false; pk.abilityState.justSwitched = !isLeaving; pk.abilityState.charged = false; pk.abilityState.slowStartTurns = 0;
@@ -5216,11 +5688,13 @@ function winBattle() {
     State.streak++;
     State.maxStreak = Math.max(State.maxStreak, State.streak);
     safeStorageSet('battle-factory-max-streak', State.maxStreak);
+    safeStorageSet(CURRENT_STREAK_STORAGE_KEY, State.streak);
     document.getElementById('streak').textContent = State.streak;
     document.getElementById('max-streak').textContent = State.maxStreak;
     const awardedSymbols = awardFactorySymbolsForRecord(State.streak);
     const isSecretSymbolMilestone = awardedSymbols.length > 0 || Object.values(FACTORY_SYMBOL_DEFS).some(def => def.threshold === State.streak);
     if (State.streak % 25 === 0 && !isSecretSymbolMilestone) alert(`🎉 素晴らしい！連勝記録が ${State.streak} に到達しました！`);
+    saveSessionCheckpoint('swap');
     button.onclick = showSwapScreen;
 }
 function loseBattle(isDraw) {
@@ -5231,7 +5705,10 @@ function loseBattle(isDraw) {
     document.getElementById('switch-controls').innerHTML = '';
     document.getElementById('switch-panel').classList.add('hidden');
     State.streak = 0;
+    safeStorageSet(CURRENT_STREAK_STORAGE_KEY, 0);
+    safeStorageRemove(SESSION_CHECKPOINT_STORAGE_KEY);
     document.getElementById('streak').textContent = '0';
+    updateCheckpointButtons();
     const button = document.getElementById('btn-next-phase');
     button.textContent = '最初から遊ぶ';
     button.classList.remove('hidden');
@@ -5279,6 +5756,8 @@ window.addEventListener('load', () => {
     document.getElementById('btn-close-options').onclick = closeOptions;
     document.getElementById('btn-end-game').onclick = endCurrentGame;
     document.getElementById('btn-restart-game').onclick = () => location.reload();
+    document.getElementById('btn-restart-checkpoint').onclick = restartFromCheckpoint;
+    document.getElementById('btn-resume-session').onclick = () => restoreSessionCheckpoint();
     document.getElementById('btn-close-symbol-award').onclick = closeFactorySymbolAward;
     const themeSelect = document.getElementById('theme-select');
     if (themeSelect) {
@@ -5286,7 +5765,16 @@ window.addEventListener('load', () => {
         themeSelect.onchange = event => applyTheme(event.target.value);
     }
     UI.options?.addEventListener('click', event => { if (event.target === UI.options) closeOptions(); });
-    startDraftPhase();
+    updateCheckpointButtons();
+    const checkpoint = loadSessionCheckpoint();
+    if (checkpoint && confirm(`前回の${checkpoint.phase === 'swap' ? '交換画面' : 'バトル'}が保存されています。直前の続きから再開しますか？`)) {
+        restoreSessionCheckpoint(checkpoint);
+    } else {
+        if (checkpoint) clearSessionCheckpoint({ clearStreak: true });
+        else if (State.streak > 0) { State.streak = 0; safeStorageSet(CURRENT_STREAK_STORAGE_KEY, 0); }
+        document.getElementById('streak').textContent = State.streak;
+        startDraftPhase();
+    }
     // 旧版ですでに条件を達成していた記録も、事前表示せず起動後に突然授与する。
     setTimeout(() => awardFactorySymbolsForRecord(State.maxStreak), 900);
 });

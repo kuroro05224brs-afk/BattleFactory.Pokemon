@@ -451,7 +451,7 @@
         <button id="btn-restart-game" type="button">もう一度遊ぶ</button>
     </div>
     <div id="swap-screen" class="hidden">
-        <h3>勝利！相手のパーティから1匹交換しますか？</h3>
+        <h3>勝利！相手のパーティから1匹奪いますか？</h3>
         <p>相手のパーティ（欲しいポケモンを選択）</p>
         <div id="enemy-pool" class="flex"></div>
         <p>自分のパーティ（外すポケモンを選択）</p>
@@ -516,7 +516,7 @@
 'use strict';
 
 const POKE_API = 'https://pokeapi.co/api/v2';
-const CATALOG_CACHE_KEY = 'battle-factory-pokeapi-catalog-v11-forced-switch-palafin-gender';
+const CATALOG_CACHE_KEY = 'battle-factory-pokeapi-catalog-v13-form-ability-za-mega-audit';
 const CATALOG_TTL = 7 * 24 * 60 * 60 * 1000; // 一覧は7日間再利用して起動時通信を削減
 
 const TYPE_CHART = {
@@ -793,12 +793,15 @@ const ABILITY_NAMES = {
     'protosynthesis':'こだいかっせい','quark-drive':'クォークチャージ',
     'intrepid-sword':'ふとうのけん','dauntless-shield':'ふくつのたて','desolate-land':'おわりのだいち','primordial-sea':'はじまりのうみ',
     'multitype':'マルチタイプ','rks-system':'ARシステム','stance-change':'バトルスイッチ',
-    'ice-face':'アイスフェイス','disguise':'ばけのかわ','shields-down':'リミットシールド','zero-to-hero':'マイティチェンジ','klutz':'ぶきよう'
+    'forecast':'てんきや','flower-gift':'フラワーギフト','zen-mode':'ダルマモード','schooling':'ぎょぐん',
+    'power-construct':'スワームチェンジ','gulp-missile':'うのミサイル','hunger-switch':'はらぺこスイッチ',
+    'ice-face':'アイスフェイス','disguise':'ばけのかわ','shields-down':'リミットシールド','zero-to-hero':'マイティチェンジ',
+    'tera-shift':'テラスチェンジ','tera-shell':'テラスシェル','teraform-zero':'ゼロフォーミング','klutz':'ぶきよう'
 };
 
 // この1対1エンジンで効果を持つ特性。未登録特性は監査に表示し、効果があると誤認させない。
 const IMPLEMENTED_ABILITIES = new Set(Object.keys(ABILITY_NAMES));
-const ABILITY_REVIEW_VERSION = '2026-07-20-v12-forced-switch-palafin-gender-review';
+const ABILITY_REVIEW_VERSION = '2026-07-21-v15-complete-battle-form-and-za-mega-audit';
 const SINGLE_BATTLE_NO_EFFECT_ABILITIES = new Set([
     'run-away','illuminate','pickup','honey-gather','ball-fetch','plus','minus','friend-guard','healer','telepathy','symbiosis',
     'battery','power-spot','steely-spirit','commander','costar','hospitality','receiver','power-of-alchemy','curious-medicine'
@@ -892,7 +895,7 @@ const ZA_MEGA_DEFS = {
     barbaracle: [{ apiSlug:'barbaracle-mega', types:['rock','fighting'], role:'balancedPhysical' }],
     dragalge: [{ apiSlug:'dragalge-mega', types:['poison','dragon'], role:'bulkySpecial' }],
     hawlucha: [{ apiSlug:'hawlucha-mega', types:['fighting','flying'], role:'fastPhysical' }],
-    zygarde: [{ apiSlug:'zygarde-complete-mega', types:['dragon','ground'], role:'bulkyPhysical' }],
+    zygarde: [{ apiSlug:'zygarde-mega', displayName:'メガジガルデ', stoneJa:'ジガルデナイト', requiresForm:'complete', types:['dragon','ground'], ability:'aura-break', stats:{ hp:216, attack:70, defense:91, 'special-attack':216, 'special-defense':85, speed:100 }, weight:6100, role:'bulkySpecial', compatibilityNote:'メガジガルデはZ-A準拠の名称・タイプ・重量・能力値を使用し、特性はターン制互換としてオーラブレイクを維持します。' }],
     crabominable: [{ apiSlug:'crabominable-mega', types:['fighting','ice'], role:'balancedPhysical' }],
     golisopod: [{ apiSlug:'golisopod-mega', types:['bug','water'], role:'bulkyPhysical' }],
     drampa: [{ apiSlug:'drampa-mega', types:['normal','dragon'], role:'bulkySpecial' }],
@@ -1295,10 +1298,34 @@ function isGamePokemonSpriteUrl(value) {
     // PokeAPI公式リポジトリのraw、jsDelivrミラー、公式GitHub Pagesを許可する。
     return lower.startsWith('https://raw.githubusercontent.com/pokeapi/sprites/') ||
         lower.startsWith('https://cdn.jsdelivr.net/gh/pokeapi/sprites@') ||
-        lower.startsWith('https://pokeapi.github.io/sprites/');
+        lower.startsWith('https://pokeapi.github.io/sprites/') ||
+        lower.startsWith('https://play.pokemonshowdown.com/sprites/gen5/') ||
+        lower.startsWith('https://play.pokemonshowdown.com/sprites/gen5-back/');
 }
 function uniqueSpriteUrls(values) {
     return [...new Set((values || []).filter(isGamePokemonSpriteUrl))];
+}
+function showdownGen5SpriteSlugs(apiSlug) {
+    const slug = String(apiSlug || '').trim().toLowerCase();
+    if (!slug || !/^[a-z0-9-]+$/.test(slug)) return [];
+    const aliases = [slug];
+    aliases.push(slug.replace(/-mega-([xyz])$/, '-mega$1'));
+    aliases.push(slug.replace(/-(eternal|original)-mega$/, '-$1mega'));
+    if (slug === 'cherrim-overcast') aliases.push('cherrim');
+    if (slug === 'aegislash-shield') aliases.push('aegislash');
+    if (slug === 'darmanitan-standard') aliases.push('darmanitan');
+    if (slug === 'darmanitan-galar-standard') aliases.push('darmanitan-galar');
+    if (slug === 'wishiwashi-solo') aliases.push('wishiwashi');
+    if (slug === 'morpeko-full-belly') aliases.push('morpeko');
+    if (slug === 'terapagos-normal') aliases.push('terapagos');
+    return [...new Set(aliases.filter(Boolean))];
+}
+function showdownGen5SpriteUrls(apiSlug) {
+    const slugs = showdownGen5SpriteSlugs(apiSlug);
+    return {
+        front: slugs.map(slug => `https://play.pokemonshowdown.com/sprites/gen5/${slug}.png`),
+        back: slugs.map(slug => `https://play.pokemonshowdown.com/sprites/gen5-back/${slug}.png`)
+    };
 }
 function repositorySpriteUrls(id) {
     const numericId = Number(id);
@@ -1354,11 +1381,12 @@ function ensurePokemonSpriteCandidates(pk, apiData = null) {
     if (!pk) return { front: [POKEMON_IMAGE_PLACEHOLDER], back: [] };
     const apiCandidates = apiData ? spriteCandidatesFromApi(apiData) : { front: [], back: [] };
     const repo = repositorySpriteUrls(pk.spriteFormId || pk.id);
+    const showdown = showdownGen5SpriteUrls(pk.apiName || pk.speciesKey);
     pk.spriteFrontCandidates = uniqueSpriteUrls([
-        ...apiCandidates.front, pk.spriteF, ...(pk.spriteFrontCandidates || []), ...repo.front
+        ...showdown.front, ...apiCandidates.front, pk.spriteF, ...(pk.spriteFrontCandidates || []), ...repo.front
     ]);
     pk.spriteBackCandidates = uniqueSpriteUrls([
-        ...apiCandidates.back, pk.spriteB, ...(pk.spriteBackCandidates || []), ...repo.back
+        ...showdown.back, ...apiCandidates.back, pk.spriteB, ...(pk.spriteBackCandidates || []), ...repo.back
     ]);
     pk.spriteF = pk.spriteFrontCandidates[0] || POKEMON_IMAGE_PLACEHOLDER;
     pk.spriteB = pk.spriteBackCandidates[0] || '';
@@ -1612,8 +1640,9 @@ async function cacheAbilityLocalization(abilityRef) {
     if (japanese) ABILITY_NAMES[slug] = japanese;
 }
 function hasAbility(pk, slug) { return pk?.ability === slug; }
-const MOLD_BREAKER_UNIGNORABLE_ABILITIES = new Set(['full-metal-body', 'prism-armor', 'shadow-shield', 'shields-down', 'zero-to-hero']);
-const ABILITY_CANNOT_BE_REPLACED = new Set(['as-one-glastrier', 'as-one-spectrier', 'battle-bond', 'comatose', 'multitype', 'rks-system', 'commander', 'stance-change', 'ice-face', 'disguise', 'shields-down', 'zero-to-hero']);
+const MOLD_BREAKER_UNIGNORABLE_ABILITIES = new Set(['full-metal-body', 'prism-armor', 'shadow-shield', 'shields-down', 'zero-to-hero', 'schooling', 'power-construct', 'hunger-switch', 'tera-shift']);
+const ABILITY_CANNOT_BE_REPLACED = new Set(['as-one-glastrier', 'as-one-spectrier', 'battle-bond', 'comatose', 'multitype', 'rks-system', 'commander', 'stance-change', 'ice-face', 'disguise', 'shields-down', 'zero-to-hero', 'schooling', 'power-construct', 'gulp-missile', 'hunger-switch', 'zen-mode', 'tera-shift', 'tera-shell', 'teraform-zero']);
+const BATTLE_FORM_ABILITY_SLUGS = new Set(['forecast','flower-gift','zen-mode','schooling','power-construct','gulp-missile','hunger-switch','stance-change','ice-face','disguise','shields-down','zero-to-hero','tera-shift']);
 function ignoresAbilities(attacker, defender = null) {
     if (!['mold-breaker', 'teravolt', 'turboblaze'].includes(attacker?.ability)) return false;
     if (defender && hasItem(defender, 'ability-shield')) return false;
@@ -1643,14 +1672,16 @@ function megaVariantFromSlug(slug) {
 }
 function buildMegaDefinition(pokemon, raw) {
     const variant = raw.variant || megaVariantFromSlug(raw.apiSlug);
-    const baseLabel = pokemon.baseName || pokemon.name;
+    // フォルム注記をメガ名へ重ねない。例: ジガルデ（５０％フォルム）→メガジガルデ。
+    const rawBaseLabel = pokemon.baseName || pokemon.name;
+    const baseLabel = String(rawBaseLabel).replace(/（[^）]*フォルム）/g, '').replace(/（[^）]*すがた）/g, '').trim();
     const displayVariant = ({ X: 'Ｘ', Y: 'Ｙ', Z: 'Ｚ' })[variant] || variant;
     const stone = raw.noStone ? null : `mega-stone:${raw.apiSlug}`;
-    const stoneJa = stone ? `${baseLabel}ナイト${displayVariant}` : '';
+    const stoneJa = raw.stoneJa || (stone ? `${baseLabel}ナイト${displayVariant}` : '');
     if (stone) ITEM_DEFS[stone] = ITEM_DEFS[stone] || { ja: stoneJa };
     return {
         ...raw, variant, stone, stoneJa,
-        displayName: `メガ${baseLabel}${displayVariant}`,
+        displayName: raw.displayName || `メガ${baseLabel}${displayVariant}`,
         apiUrl: raw.apiUrl || State.catalog.megaResources?.[raw.apiSlug] || null
     };
 }
@@ -1677,7 +1708,10 @@ function getMegaOptions(pokemon) {
             role: 'mixed'
         });
     }
-    for (const raw of ZA_MEGA_DEFS[pokemon.speciesKey] || []) candidates.push({ ...raw, source: 'za' });
+    // Z-Aの新規メガは原種を基準にする。リージョンフォームへ同名種のメガ候補を誤付与しない。
+    if (!regionalFormInfo(pokemon.apiName)) {
+        for (const raw of ZA_MEGA_DEFS[pokemon.speciesKey] || []) candidates.push({ ...raw, source: 'za' });
+    }
     for (const raw of candidates) {
         if (seen.has(raw.apiSlug)) continue;
         seen.add(raw.apiSlug);
@@ -1806,6 +1840,13 @@ function normalizeRestoredPokemon(pk) {
     pk.itemState ||= { metronomeMove: null, metronomeCount: 0 };
     pk.palafinProfile ||= null;
     pk.palafinForm ||= null;
+    pk.forecastProfile ||= null; pk.forecastForm ||= null;
+    pk.flowerGiftProfile ||= null; pk.flowerGiftForm ||= null;
+    pk.zenModeProfile ||= null; pk.zenModeForm ||= null;
+    pk.schoolingProfile ||= null; pk.schoolingForm ||= null;
+    pk.powerConstructProfile ||= null; pk.powerConstructForm ||= null; pk.powerConstructActivated = Boolean(pk.powerConstructActivated);
+    pk.hungerSwitchProfile ||= null; pk.hungerSwitchForm ||= null;
+    pk.gulpMissileProfile ||= null; pk.gulpMissileForm ||= null;
     pk.volatile ||= {};
     Object.assign(pk.volatile, {
         flinch: false, infatuatedBy: null, trappedBy: null, pendingItemSwitch: null,
@@ -1816,6 +1857,14 @@ function normalizeRestoredPokemon(pk) {
         rolloutHits: Math.max(0, Math.min(4, Number(pk.volatile.rolloutHits || 0))),
         rolloutMax: 5
     });
+    if (pk.megaProfile?.definition?.apiSlug === 'zygarde-complete-mega') {
+        pk.megaProfile.definition.apiSlug = 'zygarde-mega';
+        pk.megaProfile.definition.displayName = 'メガジガルデ';
+        pk.megaProfile.definition.requiresForm = 'complete';
+        pk.megaProfile.name = 'メガジガルデ';
+        pk.megaProfile.definition.displayName = 'メガジガルデ';
+        pk.megaProfile.apiName = 'zygarde-mega';
+    }
     ensurePokemonTypeIntegrity(pk, 'checkpoint-restore');
     ensurePokemonSpriteCandidates(pk);
     for (const move of pk.moves || []) {
@@ -1845,7 +1894,10 @@ async function restoreSessionCheckpoint(checkpoint = loadSessionCheckpoint()) {
     try {
         State.playerTeam = checkpoint.playerTeam.map(normalizeRestoredPokemon);
         State.enemyTeam = checkpoint.enemyTeam.map(normalizeRestoredPokemon);
-        await Promise.all([...State.playerTeam, ...State.enemyTeam].map(pk => prepareZeroToHeroProfile(pk)));
+        await Promise.all([...State.playerTeam, ...State.enemyTeam].map(async pk => {
+            await prepareZeroToHeroProfile(pk);
+            await prepareBattleFormAbilityProfiles(pk);
+        }));
         State.streak = Math.max(0, Number(checkpoint.streak || 0));
         safeStorageSet(CURRENT_STREAK_STORAGE_KEY, State.streak);
         document.getElementById('streak').textContent = State.streak;
@@ -2070,7 +2122,7 @@ function renderAudit() {
     const supportedHeld = State.catalog.activeHeldItems.filter(item => ITEM_DEFS[item.name]).length;
     const pokemonText = State.catalog.fallback
         ? 'ポケモン一覧の取得に失敗したため、旧上限1010件へフォールバック中'
-        : `ポケモン ${State.catalog.pokemonTotal}件中、メガ進化${State.catalog.excludedMega}件・ゲンシ形態${State.catalog.excludedPrimal || 0}件・時空三神オリジン${State.catalog.excludedOriginTrio || 0}件を除く${State.catalog.pokemon.length}件を抽選対象`;
+        : `ポケモン ${State.catalog.pokemonTotal}件中、メガ進化${State.catalog.excludedMega}件・ゲンシ形態${State.catalog.excludedPrimal || 0}件・時空三神オリジン${State.catalog.excludedOriginTrio || 0}件を除く${State.catalog.pokemon.length}件を抽選対象（戦闘中フォルム特性13系統を監査済み）`;
     const moveText = State.catalog.moveTotal
         ? `技 ${State.catalog.moveTotal}件（件数のみ高速確認）。選出された技は個別データで動作可否を判定`
         : '技の総件数は未取得。選出された技の個別安全判定は有効';
@@ -2085,14 +2137,14 @@ function renderAudit() {
         <span>${escapeHTML(pokemonText)}</span>
         <span>${escapeHTML(moveText)}</span>
         <span>${escapeHTML(itemText)}</span>
-        <span>メガシンカ: ポケモンデータ収録形態は実データを遅延取得／レジェンズ Z-A・メガディメンションの新規45形態は内蔵互換データで補完</span>
+        <span>メガシンカ: ポケモンデータ収録形態は実データを遅延取得／『Pokémon LEGENDS Z-A』『M次元ラッシュ』の新規形態は名称・タイプ・戦闘中の姿を確認し、未収録データのみターン制互換設定で補完</span>
         ${State.audit.unsupportedHeldItems.length ? `<span>未実装の持ち物: ${State.audit.unsupportedHeldItems.length}件（英語の内部名は画面に表示しません）</span>` : ''}
         <span>タイプ監査 ${TYPE_SYSTEM_REVIEW_VERSION}: 18タイプ×18タイプを検査／ブリジュラス（はがね・ドラゴン）へのこおり技は1倍／自動修復 ${State.audit.typeIntegrityRepairs.length}件／相性表エラー ${State.audit.typeChartErrors.length}件</span>
         <span>画像仕様 ${POKEMON_SPRITE_POLICY}: 第5世代B/W基準の96pxスプライトへ統一／650番以降はSmogonコミュニティ制作のB/W風画像を優先／ピカチュウ・イーブイ・コライドン・ミライドンは前面・背面をHTML内蔵</span>
         <span>安定性監査: 非同期操作は必ずfinallyでロック解除／30秒監視で直前チェックポイントへ自動復旧／個体生成失敗は該当個体だけ除外／画像は同じB/W系候補へ自動フォールバック</span>
         <span>技説明: 最新側の「使用不可・忘れることを推奨」は表示せず、最も新しい有効な日本語説明へ自動で遡る／説明がない場合は技データから生成／めざめるパワーは個体値による動的タイプに対応</span>
         <span>きのみ監査 ${BERRY_REVIEW_VERSION}: 登録47種を状態回復・HP回復・能力上昇・半減・被弾反応・PP回復・優先行動に分類して検査／ねむる直後のカゴのみ・ラムのみ即時発動に対応</span>
-        <span>特性レビュー ${ABILITY_REVIEW_VERSION}: リミットシールドの形態・能力値・状態異常耐性、およびイルカマンのマイティチェンジ（交代時変身・戦闘中維持・次戦リセット）を実装／今回抽選で表示のみ ${State.audit.unsupportedAbilities.size}件</span>
+        <span>特性レビュー ${ABILITY_REVIEW_VERSION}: バトルスイッチ／てんきや／フラワーギフト／ダルマモード／ぎょぐん／リミットシールド／スワームチェンジ／ばけのかわ／アイスフェイス／うのミサイル／はらぺこスイッチ／マイティチェンジ／テラスチェンジ／テラスシェルを形態・能力値・タイプ・画像・発動時機まで監査／今回抽選で表示のみ ${State.audit.unsupportedAbilities.size}件</span>
         ${State.audit.unsupportedAbilities.size ? `<span>未実装特性も正式名称を表示しますが、効果は安全に無処理です。対応済みと誤表示しないよう監査件数へ分離しています。</span>` : ''}
         <div class="api-audit-actions">${detailAction}</div>
     `;
@@ -2281,6 +2333,7 @@ function applyIceFaceForm(pk, form, isPlayer = null, announce = true, force = fa
     pk.spriteB = profile.spriteB || pk.spriteB;
     ensurePokemonSpriteCandidates(pk);
     pk.weight = profile.weight || pk.weight;
+    if (profile.ability) pk.ability = profile.ability;
     pk.stats = calculateStatsFromBase(pk.baseStats, pk);
     pk.stats.hp = currentHp;
     pk.stats.maxHp = currentMaxHp;
@@ -2532,6 +2585,313 @@ function resetPalafinForNewBattle(pk) {
     return applyPalafinForm(pk, 'zero', null, false, true, false);
 }
 
+
+// --- 戦闘中に姿が変わる特性の共通監査実装 ------------------------------
+// 対象: てんきや / フラワーギフト / ダルマモード / ぎょぐん /
+//       スワームチェンジ / うのミサイル / はらぺこスイッチ。
+// 既存のバトルスイッチ・アイスフェイス・ばけのかわ・リミットシールド・
+// マイティチェンジと同じく、名前・タイプ・種族値・画像を一体で切り替える。
+function makeFallbackFormProfile(pokemon, fallback = {}) {
+    const apiName = fallback.apiName || pokemon.apiName;
+    const showdown = showdownGen5SpriteUrls(apiName);
+    return {
+        id: fallback.id || pokemon.id,
+        name: fallback.name || pokemon.name,
+        apiName,
+        types: normalizeTypeList(fallback.types || pokemon.types, pokemon.types, apiName),
+        baseStats: { ...(fallback.baseStats || pokemon.baseStats) },
+        spriteF: showdown.front[0] || pokemon.spriteF,
+        spriteB: showdown.back[0] || pokemon.spriteB,
+        spriteFrontCandidates: uniqueSpriteUrls([...showdown.front, ...(pokemon.spriteFrontCandidates || []), pokemon.spriteF]),
+        spriteBackCandidates: uniqueSpriteUrls([...showdown.back, ...(pokemon.spriteBackCandidates || []), pokemon.spriteB]),
+        weight: fallback.weight || pokemon.weight,
+        ability: fallback.ability || null
+    };
+}
+async function loadBattleFormProfile(pokemon, apiSlug, fallback = {}) {
+    const data = await fetchAPI(`${POKE_API}/pokemon/${apiSlug}`, State.cache.pokemon, 0, 7000);
+    const stats = {};
+    data?.stats?.forEach(entry => { stats[entry.stat.name] = entry.base_stat; });
+    const apiCandidates = spriteCandidatesFromApi(data || {});
+    const showdown = showdownGen5SpriteUrls(data?.name || apiSlug);
+    const base = makeFallbackFormProfile(pokemon, { ...fallback, apiName: data?.name || apiSlug, id: data?.id || fallback.id });
+    return {
+        ...base,
+        id: data?.id || base.id,
+        apiName: data?.name || base.apiName,
+        types: resolvePokemonTypes(data, fallback.types || base.types),
+        baseStats: Object.keys(stats).length ? stats : base.baseStats,
+        spriteF: uniqueSpriteUrls([...showdown.front, ...apiCandidates.front, base.spriteF])[0] || base.spriteF,
+        spriteB: uniqueSpriteUrls([...showdown.back, ...apiCandidates.back, base.spriteB])[0] || base.spriteB,
+        spriteFrontCandidates: uniqueSpriteUrls([...showdown.front, ...apiCandidates.front, ...(base.spriteFrontCandidates || [])]),
+        spriteBackCandidates: uniqueSpriteUrls([...showdown.back, ...apiCandidates.back, ...(base.spriteBackCandidates || [])]),
+        weight: data?.weight || base.weight
+    };
+}
+function applyAbilityFormProfile(pk, profileMap, stateProperty, form, options = {}) {
+    const profile = profileMap?.[form];
+    if (!pk || !profile || (!options.force && pk[stateProperty] === form)) return false;
+    const oldHp = pk.stats.hp;
+    const oldMaxHp = pk.stats.maxHp;
+    pk.name = profile.name;
+    pk.apiName = profile.apiName;
+    pk.types = normalizeTypeList(profile.types, pk.originalTypes || pk.types, profile.apiName);
+    pk.originalTypes = [...pk.types];
+    pk.battleBaseTypes = [...pk.types];
+    pk.baseStats = { ...profile.baseStats };
+    pk.spriteFormId = profile.id || pk.id;
+    pk.spriteF = profile.spriteF || pk.spriteF;
+    pk.spriteB = profile.spriteB || pk.spriteB;
+    pk.spriteFrontCandidates = uniqueSpriteUrls([profile.spriteF, ...(profile.spriteFrontCandidates || [])]);
+    pk.spriteBackCandidates = uniqueSpriteUrls([profile.spriteB, ...(profile.spriteBackCandidates || [])]);
+    ensurePokemonSpriteCandidates(pk);
+    pk.weight = profile.weight || pk.weight;
+    if (profile.ability) pk.ability = profile.ability;
+    pk.stats = calculateStatsFromBase(pk.baseStats, pk);
+    if (options.hpMode === 'gain-max-difference') {
+        const gained = Math.max(0, pk.stats.maxHp - oldMaxHp);
+        pk.stats.hp = Math.min(pk.stats.maxHp, oldHp + gained);
+    } else {
+        pk.stats.hp = Math.min(oldHp, options.preserveCalculatedMax ? pk.stats.maxHp : oldMaxHp);
+        if (!options.preserveCalculatedMax) pk.stats.maxHp = oldMaxHp;
+    }
+    pk[stateProperty] = form;
+    if (options.message) logMsg(options.message(pk, form));
+    if (options.refreshUI !== false) {
+        const isPlayer = options.isPlayer ?? isPlayerPokemon(pk);
+        const image = document.getElementById(isPlayer ? 'player-img' : 'enemy-img');
+        image?.classList.remove('stance-flash');
+        void image?.offsetWidth;
+        image?.classList.add('stance-flash');
+        updateBattleUI();
+    }
+    return true;
+}
+
+async function prepareForecastProfile(pokemon) {
+    if (!pokemon || pokemon.speciesKey !== 'castform' || !hasAbility(pokemon, 'forecast')) return;
+    const normal = makeFallbackFormProfile(pokemon, { name:'ポワルン', apiName:'castform', types:['normal'] });
+    const [sunny, rainy, snowy] = await Promise.all([
+        loadBattleFormProfile(pokemon, 'castform-sunny', { name:'ポワルン（たいようのすがた）', types:['fire'] }),
+        loadBattleFormProfile(pokemon, 'castform-rainy', { name:'ポワルン（あまみずのすがた）', types:['water'] }),
+        loadBattleFormProfile(pokemon, 'castform-snowy', { name:'ポワルン（ゆきぐものすがた）', types:['ice'] })
+    ]);
+    pokemon.forecastProfile = { normal, sunny, rainy, snowy };
+    applyAbilityFormProfile(pokemon, pokemon.forecastProfile, 'forecastForm', 'normal', { force:true, refreshUI:false });
+}
+function syncForecastForm(pk, announce = true) {
+    if (!pk?.forecastProfile || pk.speciesKey !== 'castform' || !hasAbility(pk, 'forecast') || pk.stats.hp <= 0) return false;
+    const weather = effectiveWeatherName();
+    const form = weather === 'sun' ? 'sunny' : weather === 'rain' ? 'rainy' : ['hail','snow'].includes(weather) ? 'snowy' : 'normal';
+    return applyAbilityFormProfile(pk, pk.forecastProfile, 'forecastForm', form, {
+        message: announce ? (subject, next) => `🌦️ ${escapeHTML(subject.name)} の てんきや！ ${next === 'normal' ? '元の姿' : escapeHTML(subject.name)} になった！` : null
+    });
+}
+
+async function prepareFlowerGiftProfile(pokemon) {
+    if (!pokemon || pokemon.speciesKey !== 'cherrim' || !hasAbility(pokemon, 'flower-gift')) return;
+    const overcast = makeFallbackFormProfile(pokemon, { name:'チェリム（ネガフォルム）', apiName:'cherrim-overcast', types:['grass'] });
+    const sunshine = await loadBattleFormProfile(pokemon, 'cherrim-sunshine', { name:'チェリム（ポジフォルム）', types:['grass'] });
+    pokemon.flowerGiftProfile = { overcast, sunshine };
+    applyAbilityFormProfile(pokemon, pokemon.flowerGiftProfile, 'flowerGiftForm', 'overcast', { force:true, refreshUI:false });
+}
+function syncFlowerGiftForm(pk, announce = true) {
+    if (!pk?.flowerGiftProfile || pk.speciesKey !== 'cherrim' || !hasAbility(pk, 'flower-gift') || pk.stats.hp <= 0) return false;
+    const form = effectiveWeatherName() === 'sun' ? 'sunshine' : 'overcast';
+    return applyAbilityFormProfile(pk, pk.flowerGiftProfile, 'flowerGiftForm', form, {
+        message: announce ? subject => `🌸 ${escapeHTML(subject.name)} の フラワーギフト！ 姿が変わった！` : null
+    });
+}
+function flowerGiftBoostActive(pk) {
+    return Boolean(pk?.speciesKey === 'cherrim' && hasAbility(pk, 'flower-gift') && effectiveWeatherName() === 'sun' && pk.stats.hp > 0);
+}
+
+async function prepareZenModeProfile(pokemon) {
+    if (!pokemon || pokemon.speciesKey !== 'darmanitan' || !hasAbility(pokemon, 'zen-mode')) return;
+    const galar = String(pokemon.apiName).includes('galar');
+    const standard = makeFallbackFormProfile(pokemon, {
+        name: galar ? 'ガラルヒヒダルマ（ノーマルモード）' : 'ヒヒダルマ（ノーマルモード）',
+        apiName: galar ? 'darmanitan-galar-standard' : 'darmanitan-standard'
+    });
+    const zen = await loadBattleFormProfile(pokemon, galar ? 'darmanitan-galar-zen' : 'darmanitan-zen', galar ? {
+        name:'ガラルヒヒダルマ（ダルマモード）', types:['ice','fire'],
+        baseStats:{ hp:105, attack:160, defense:55, 'special-attack':30, 'special-defense':55, speed:135 }
+    } : {
+        name:'ヒヒダルマ（ダルマモード）', types:['fire','psychic'],
+        baseStats:{ hp:105, attack:30, defense:105, 'special-attack':140, 'special-defense':105, speed:55 }
+    });
+    pokemon.zenModeProfile = { standard, zen };
+    applyAbilityFormProfile(pokemon, pokemon.zenModeProfile, 'zenModeForm', 'standard', { force:true, refreshUI:false });
+}
+function syncZenModeForm(pk, announce = true) {
+    if (!pk?.zenModeProfile || pk.speciesKey !== 'darmanitan' || !hasAbility(pk, 'zen-mode') || pk.stats.hp <= 0) return false;
+    const form = pk.stats.hp * 2 <= pk.stats.maxHp ? 'zen' : 'standard';
+    return applyAbilityFormProfile(pk, pk.zenModeProfile, 'zenModeForm', form, {
+        message: announce ? subject => `🧘 ${escapeHTML(subject.name)} の ダルマモード！ 姿が変わった！` : null
+    });
+}
+
+async function prepareSchoolingProfile(pokemon) {
+    if (!pokemon || pokemon.speciesKey !== 'wishiwashi' || !hasAbility(pokemon, 'schooling')) return;
+    const solo = makeFallbackFormProfile(pokemon, { name:'ヨワシ（たんどくのすがた）', apiName:'wishiwashi-solo', types:['water'] });
+    const school = await loadBattleFormProfile(pokemon, 'wishiwashi-school', {
+        name:'ヨワシ（むれたすがた）', types:['water'],
+        baseStats:{ hp:45, attack:140, defense:130, 'special-attack':140, 'special-defense':135, speed:30 }
+    });
+    pokemon.schoolingProfile = { solo, school };
+    applyAbilityFormProfile(pokemon, pokemon.schoolingProfile, 'schoolingForm', 'solo', { force:true, refreshUI:false });
+}
+function syncSchoolingForm(pk, announce = true) {
+    if (!pk?.schoolingProfile || pk.speciesKey !== 'wishiwashi' || !hasAbility(pk, 'schooling') || pk.stats.hp <= 0) return false;
+    // バトルファクトリーのレベルは50相当なので、レベル条件（20以上）は常に満たす。
+    const form = pk.stats.hp * 4 > pk.stats.maxHp ? 'school' : 'solo';
+    return applyAbilityFormProfile(pk, pk.schoolingProfile, 'schoolingForm', form, {
+        message: announce ? subject => `🐟 ${escapeHTML(subject.name)} の ぎょぐん！ 姿が変わった！` : null
+    });
+}
+
+async function preparePowerConstructProfile(pokemon) {
+    if (!pokemon || pokemon.speciesKey !== 'zygarde' || !hasAbility(pokemon, 'power-construct') || String(pokemon.apiName).includes('complete')) return;
+    const base = makeFallbackFormProfile(pokemon, { name:pokemon.name, apiName:pokemon.apiName, types:['dragon','ground'] });
+    const complete = await loadBattleFormProfile(pokemon, 'zygarde-complete', {
+        name:'ジガルデ（パーフェクトフォルム）', types:['dragon','ground'], weight:6100,
+        baseStats:{ hp:216, attack:100, defense:121, 'special-attack':91, 'special-defense':95, speed:85 }
+    });
+    pokemon.powerConstructProfile = { base, complete };
+    pokemon.powerConstructOriginalApiName = base.apiName;
+    pokemon.powerConstructActivated = false;
+    applyAbilityFormProfile(pokemon, pokemon.powerConstructProfile, 'powerConstructForm', 'base', { force:true, refreshUI:false });
+}
+function syncPowerConstructForm(pk, announce = true) {
+    if (!pk?.powerConstructProfile || pk.speciesKey !== 'zygarde' || !hasAbility(pk, 'power-construct') || pk.stats.hp <= 0 || pk.powerConstructActivated) return false;
+    if (pk.stats.hp * 2 > pk.stats.maxHp) return false;
+    pk.powerConstructActivated = true;
+    return applyAbilityFormProfile(pk, pk.powerConstructProfile, 'powerConstructForm', 'complete', {
+        preserveCalculatedMax:true, hpMode:'gain-max-difference',
+        message: announce ? subject => `🧬 ${escapeHTML(subject.name)} の スワームチェンジ！ パーフェクトフォルムになった！` : null
+    });
+}
+function resetPowerConstructForNewBattle(pk) {
+    if (!pk?.powerConstructProfile) return false;
+    pk.powerConstructActivated = false;
+    return applyAbilityFormProfile(pk, pk.powerConstructProfile, 'powerConstructForm', 'base', { force:true, preserveCalculatedMax:true, refreshUI:false });
+}
+
+async function prepareHungerSwitchProfile(pokemon) {
+    if (!pokemon || pokemon.speciesKey !== 'morpeko' || !hasAbility(pokemon, 'hunger-switch')) return;
+    const full = makeFallbackFormProfile(pokemon, { name:'モルペコ（まんぷくもよう）', apiName:'morpeko-full-belly', types:['electric','dark'] });
+    const hangry = await loadBattleFormProfile(pokemon, 'morpeko-hangry', { name:'モルペコ（はらぺこもよう）', types:['electric','dark'] });
+    pokemon.hungerSwitchProfile = { full, hangry };
+    applyAbilityFormProfile(pokemon, pokemon.hungerSwitchProfile, 'hungerSwitchForm', 'full', { force:true, refreshUI:false });
+}
+function toggleHungerSwitch(pk, announce = true) {
+    if (!pk?.hungerSwitchProfile || pk.speciesKey !== 'morpeko' || !hasAbility(pk, 'hunger-switch') || pk.stats.hp <= 0) return false;
+    const form = pk.hungerSwitchForm === 'hangry' ? 'full' : 'hangry';
+    return applyAbilityFormProfile(pk, pk.hungerSwitchProfile, 'hungerSwitchForm', form, {
+        message: announce ? subject => `🍽️ ${escapeHTML(subject.name)} の はらぺこスイッチ！` : null
+    });
+}
+
+async function prepareGulpMissileProfile(pokemon) {
+    if (!pokemon || pokemon.speciesKey !== 'cramorant' || !hasAbility(pokemon, 'gulp-missile')) return;
+    const normal = makeFallbackFormProfile(pokemon, { name:'ウッウ', apiName:'cramorant', types:['flying','water'] });
+    const [gulping, gorging] = await Promise.all([
+        loadBattleFormProfile(pokemon, 'cramorant-gulping', { name:'ウッウ（うのみのすがた）', types:['flying','water'] }),
+        loadBattleFormProfile(pokemon, 'cramorant-gorging', { name:'ウッウ（まるのみのすがた）', types:['flying','water'] })
+    ]);
+    pokemon.gulpMissileProfile = { normal, gulping, gorging };
+    applyAbilityFormProfile(pokemon, pokemon.gulpMissileProfile, 'gulpMissileForm', 'normal', { force:true, refreshUI:false });
+}
+function armGulpMissileForMove(pk, move, announce = true) {
+    if (!pk?.gulpMissileProfile || pk.speciesKey !== 'cramorant' || !hasAbility(pk, 'gulp-missile') || pk.stats.hp <= 0 || !['surf','dive'].includes(move?.origName)) return false;
+    const form = pk.stats.hp * 2 <= pk.stats.maxHp ? 'gorging' : 'gulping';
+    return applyAbilityFormProfile(pk, pk.gulpMissileProfile, 'gulpMissileForm', form, {
+        message: announce ? subject => `🐦 ${escapeHTML(subject.name)} の うのミサイル！ 獲物をくわえた！` : null
+    });
+}
+function triggerGulpMissileOnHit(defender, attacker) {
+    const form = defender?.gulpMissileForm;
+    if (!defender?.gulpMissileProfile || !['gulping','gorging'].includes(form) || !hasAbility(defender, 'gulp-missile')) return false;
+    applyAbilityFormProfile(defender, defender.gulpMissileProfile, 'gulpMissileForm', 'normal', { force:true, refreshUI:false });
+    if (attacker?.stats.hp > 0) {
+        const amount = Math.max(1, Math.floor(attacker.stats.maxHp / 4));
+        if (hasAbility(attacker, 'magic-guard')) logMsg(`✨ ${escapeHTML(attacker.name)} は マジックガード で うのミサイル のダメージを防いだ！`);
+        else {
+            attacker.stats.hp = Math.max(0, attacker.stats.hp - Math.min(attacker.stats.hp, amount));
+            logMsg(`🐟 ${escapeHTML(attacker.name)} は うのミサイル で ${amount} のダメージ！`);
+        }
+        if (form === 'gulping') changeStat(attacker, 'defense', -1, defender);
+        else applyMajorStatus(attacker, 'par', defender);
+    }
+    updateBattleUI();
+    return true;
+}
+
+async function prepareTeraShiftProfile(pokemon) {
+    if (!pokemon || pokemon.speciesKey !== 'terapagos' || !hasAbility(pokemon, 'tera-shift')) return;
+    const normal = makeFallbackFormProfile(pokemon, {
+        name:'テラパゴス（ノーマルフォルム）', apiName:'terapagos', types:['normal'], ability:'tera-shift',
+        baseStats:{ hp:90, attack:65, defense:85, 'special-attack':65, 'special-defense':85, speed:60 }, weight:65
+    });
+    const terastal = await loadBattleFormProfile(pokemon, 'terapagos-terastal', {
+        name:'テラパゴス（テラスタルフォルム）', types:['normal'], ability:'tera-shell',
+        baseStats:{ hp:95, attack:95, defense:110, 'special-attack':105, 'special-defense':110, speed:85 }, weight:160
+    });
+    terastal.ability = 'tera-shell';
+    normal.ability = 'tera-shift';
+    pokemon.teraShiftProfile = { normal, terastal };
+    pokemon.teraShiftActivated = false;
+    applyAbilityFormProfile(pokemon, pokemon.teraShiftProfile, 'teraShiftForm', 'normal', {
+        force:true, preserveCalculatedMax:true, refreshUI:false
+    });
+}
+function activateTeraShift(pk, announce = true) {
+    if (!pk?.teraShiftProfile || pk.speciesKey !== 'terapagos' || pk.teraShiftActivated || pk.stats.hp <= 0) return false;
+    // テラスチェンジは最初の登場時に発動し、交代しても同じバトル中はテラスタルフォルムを維持する。
+    pk.teraShiftActivated = true;
+    return applyAbilityFormProfile(pk, pk.teraShiftProfile, 'teraShiftForm', 'terastal', {
+        force:true, preserveCalculatedMax:true, hpMode:'gain-max-difference',
+        message: announce ? subject => `💎 ${escapeHTML(subject.name)} の テラスチェンジ！ テラスタルフォルムになった！` : null
+    });
+}
+function resetTeraShiftForNewBattle(pk) {
+    if (!pk?.teraShiftProfile) return false;
+    pk.teraShiftActivated = false;
+    return applyAbilityFormProfile(pk, pk.teraShiftProfile, 'teraShiftForm', 'normal', {
+        force:true, preserveCalculatedMax:true, refreshUI:false
+    });
+}
+
+async function prepareBattleFormAbilityProfiles(pokemon) {
+    await Promise.all([
+        prepareForecastProfile(pokemon), prepareFlowerGiftProfile(pokemon), prepareZenModeProfile(pokemon),
+        prepareSchoolingProfile(pokemon), preparePowerConstructProfile(pokemon), prepareHungerSwitchProfile(pokemon),
+        prepareGulpMissileProfile(pokemon), prepareTeraShiftProfile(pokemon)
+    ]);
+}
+function refreshWeatherDependentForms(announce = true) {
+    for (const pk of getActivePokemon()) {
+        syncForecastForm(pk, announce);
+        syncFlowerGiftForm(pk, announce);
+    }
+}
+function syncHpDependentAbilityForms(pk, announce = true) {
+    if (!pk || pk.stats.hp <= 0) return false;
+    let changed = false;
+    changed = syncZenModeForm(pk, announce) || changed;
+    changed = syncSchoolingForm(pk, announce) || changed;
+    changed = syncPowerConstructForm(pk, announce) || changed;
+    return changed;
+}
+function resetTemporaryAbilityFormsOnSwitch(pk) {
+    if (!pk) return;
+    if (pk.forecastProfile) applyAbilityFormProfile(pk, pk.forecastProfile, 'forecastForm', 'normal', { force:true, refreshUI:false });
+    if (pk.flowerGiftProfile) applyAbilityFormProfile(pk, pk.flowerGiftProfile, 'flowerGiftForm', 'overcast', { force:true, refreshUI:false });
+    if (pk.zenModeProfile) applyAbilityFormProfile(pk, pk.zenModeProfile, 'zenModeForm', 'standard', { force:true, refreshUI:false });
+    if (pk.schoolingProfile) applyAbilityFormProfile(pk, pk.schoolingProfile, 'schoolingForm', 'solo', { force:true, refreshUI:false });
+    if (pk.gulpMissileProfile) applyAbilityFormProfile(pk, pk.gulpMissileProfile, 'gulpMissileForm', 'normal', { force:true, refreshUI:false });
+}
+
 const MIMIKYU_FORM_FALLBACK = Object.freeze({
     disguised: { name: 'ミミッキュ', apiName: 'mimikyu-disguised' },
     busted: { name: 'ミミッキュ（ばれたすがた）', apiName: 'mimikyu-busted' }
@@ -2603,6 +2963,7 @@ async function prepareMegaProfile(pokemon) {
     const megaAbilityEntry = apiData?.abilities?.find(entry => !entry.is_hidden)?.ability || apiData?.abilities?.[0]?.ability || null;
     await cacheAbilityLocalization(megaAbilityEntry);
     const fallbackImage = pokemon.spriteF || POKEMON_IMAGE_PLACEHOLDER;
+    const showdownMegaSprites = showdownGen5SpriteUrls(definition.apiSlug);
     pokemon.megaProfile = {
         definition,
         name: definition.displayName,
@@ -2610,15 +2971,16 @@ async function prepareMegaProfile(pokemon) {
         types: resolvePokemonTypes(apiData, definition.types || pokemon.types),
         baseStats: Object.keys(apiStats).length ? apiStats : (definition.stats ? { ...definition.stats } : fallbackMegaBaseStats(pokemon, definition)),
         ability: megaAbilityEntry?.name || definition.ability || pokemon.ability,
-        spriteF: spriteCandidatesFromApi(apiData).front[0] || fallbackImage,
-        spriteB: spriteCandidatesFromApi(apiData).back[0] || '',
-        weight: apiData?.weight || pokemon.weight,
+        spriteF: uniqueSpriteUrls([...showdownMegaSprites.front, ...spriteCandidatesFromApi(apiData).front])[0] || fallbackImage,
+        spriteB: uniqueSpriteUrls([...showdownMegaSprites.back, ...spriteCandidatesFromApi(apiData).back])[0] || '',
+        weight: apiData?.weight || definition.weight || pokemon.weight,
         source: apiData ? 'pokeapi' : 'za-fallback'
     };
 }
 function megaRequirementMet(pk) {
     const definition = pk?.megaProfile?.definition;
     if (!definition) return false;
+    if (definition.requiresForm === 'complete' && !(pk.powerConstructForm === 'complete' || pk.apiName === 'zygarde-complete')) return false;
     if (definition.requiresMove) return pk.moves?.some(move => move.origName === definition.requiresMove);
     return Boolean(definition.stone && pk.item === definition.stone);
 }
@@ -2653,7 +3015,10 @@ async function applyMegaEvolution(pk, isPlayer) {
     image?.classList.add('mega-aura');
     logMsg(`✨ <b>${escapeHTML(pk.baseSnapshot.name)}</b> は <b>${escapeHTML(pk.name)}</b> にメガシンカした！`);
     logMsg(`🔄 タイプ: ${escapeHTML(pk.types.map(type => TYPE_NAMES[type] || 'タイプ名未取得').join(' / '))} ／ 特性: ${escapeHTML(abilityName(pk.ability))}`);
-    if (profile.source === 'za-fallback') logMsg('ℹ️ この新規メガはポケモンデータ未収録のため、種族値は+100互換配分、特性は元の特性を継承しています。');
+    if (profile.source === 'za-fallback') {
+        const note = profile.definition.compatibilityNote || 'この新規メガはPokeAPI未収録の場合、名称・タイプ・戦闘中の姿をZ-A情報へ合わせ、能力値と特性は本作のターン制バトル向け互換設定を使用します。';
+        logMsg(`ℹ️ ${escapeHTML(note)}`);
+    }
     activateEntryAbility(pk, isPlayer, true);
     updateBattleUI();
     await sleep(650);
@@ -3403,6 +3768,7 @@ async function buildPokemon(apiData) {
         moves, item: null, origItem: null, status: 'none', statusTurns: 0, toxicCounter: 0, lockedMove: null, lastMove: null,
         lastDamageTaken: null, turnsActive: 0, megaOptions: [], megaProfile: null, megaPending: false, isMega: false, baseSnapshot: null,
         stanceProfile: null, stanceForm: null, iceFaceProfile: null, iceFaceForm: null, shieldsDownProfile: null, shieldsDownForm: null, shieldsDownColor: null, palafinProfile: null, palafinForm: null, disguiseProfile: null, disguiseForm: null,
+        forecastProfile: null, forecastForm: null, flowerGiftProfile: null, flowerGiftForm: null, zenModeProfile: null, zenModeForm: null, schoolingProfile: null, schoolingForm: null, powerConstructProfile: null, powerConstructForm: null, powerConstructActivated: false, hungerSwitchProfile: null, hungerSwitchForm: null, gulpMissileProfile: null, gulpMissileForm: null, teraShiftProfile: null, teraShiftForm: null, teraShiftActivated: false,
         abilityState: { proteanUsed: false, typeChangeSource: null, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, defenseCurlUsed: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false, actedThisTurn: false, intrepidUsed: false, dauntlessUsed: false },
         itemState: { metronomeMove: null, metronomeCount: 0 },
         volatile: { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, seeded: false, nightmare: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, mustRecharge: false, rampageMove: null, rampageTurns: 0, rampageTotal: 0, rolloutMove: null, rolloutHits: 0, rolloutMax: 5, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null }
@@ -3412,6 +3778,7 @@ async function buildPokemon(apiData) {
     await prepareShieldsDownProfile(pokemon);
     await prepareZeroToHeroProfile(pokemon);
     await prepareDisguiseProfile(pokemon);
+    await prepareBattleFormAbilityProfiles(pokemon);
     pokemon.megaOptions = getMegaOptions(pokemon);
     pokemon.item = chooseItem(pokemon);
     // しんかのきせきが実際に選ばれた場合だけ進化チェーンを確認する。
@@ -3506,6 +3873,10 @@ function resetPokemonForNewBattle(pk) {
     if (pk.shieldsDownProfile) applyShieldsDownForm(pk, 'meteor', null, false, true);
     if (pk.palafinProfile) resetPalafinForNewBattle(pk);
     if (pk.disguiseProfile) applyDisguiseForm(pk, 'disguised', null, false, true);
+    resetTemporaryAbilityFormsOnSwitch(pk);
+    if (pk.powerConstructProfile) resetPowerConstructForNewBattle(pk);
+    resetTeraShiftForNewBattle(pk);
+    if (pk.hungerSwitchProfile) applyAbilityFormProfile(pk, pk.hungerSwitchProfile, 'hungerSwitchForm', 'full', { force:true, refreshUI:false });
     pk.stats.hp = pk.stats.maxHp;
     pk.status = 'none'; pk.statusTurns = 0; pk.toxicCounter = 0; pk.lockedMove = null; pk.lastMove = null; pk.lastDamageTaken = null; pk.turnsActive = 0;
     pk.item = pk.origItem;
@@ -3881,6 +4252,9 @@ async function startBattlePhase(options = {}) {
     activateEntryAbility(openingEnemy, false);
     syncShieldsDownForm(openingPlayer, true, false);
     syncShieldsDownForm(openingEnemy, false, false);
+    refreshWeatherDependentForms(false);
+    syncHpDependentAbilityForms(openingPlayer, false);
+    syncHpDependentAbilityForms(openingEnemy, false);
     await processPendingHeldItemSwitches();
     updateBattleUI();
 }
@@ -4026,7 +4400,7 @@ function activateEntryAbility(pk, isPlayer, fromMega = false) {
     }
     triggerBerries(pk);
     const foe = activeFoe(isPlayer);
-    if (hasAbility(pk, 'trace') && foe?.ability && !ABILITY_CANNOT_BE_REPLACED.has(foe.ability) && !['trace', 'forecast', 'flower-gift', 'illusion', 'imposter', 'neutralizing-gas'].includes(foe.ability)) {
+    if (hasAbility(pk, 'trace') && foe?.ability && !ABILITY_CANNOT_BE_REPLACED.has(foe.ability) && !['trace', 'forecast', 'flower-gift', 'zen-mode', 'schooling', 'power-construct', 'gulp-missile', 'hunger-switch', 'illusion', 'imposter', 'neutralizing-gas'].includes(foe.ability)) {
         pk.ability = foe.ability;
         logMsg(`🧬 ${escapeHTML(pk.name)} は トレース で ${escapeHTML(abilityName(foe.ability))} をコピーした！`);
     }
@@ -4053,11 +4427,13 @@ function activateEntryAbility(pk, isPlayer, fromMega = false) {
         logMsg(`🛡️ ${escapeHTML(pk.name)} の ふくつのたて が発動した！`);
     }
     const weatherAbilities = { drought:'sun', drizzle:'rain', 'sand-stream':'sandstorm', 'snow-warning':'snow', 'orichalcum-pulse':'sun', 'desolate-land':'sun', 'primordial-sea':'rain' };
+    if (['cloud-nine','air-lock'].includes(pk.ability)) refreshWeatherDependentForms(true);
     if (weatherAbilities[pk.ability]) {
         const primal = ['desolate-land','primordial-sea'].includes(pk.ability);
         State.field.weather = { name: weatherAbilities[pk.ability], turns: primal ? 999 : 5 };
         logMsg(`🌦️ ${escapeHTML(pk.name)} の ${escapeHTML(abilityName(pk.ability))} で天候が変わった！`);
         refreshActiveParadoxBoosts(true);
+        refreshWeatherDependentForms(true);
     }
     const terrainAbilities = { 'electric-surge':'electric', 'grassy-surge':'grassy', 'psychic-surge':'psychic', 'misty-surge':'misty', 'hadron-engine':'electric' };
     if (terrainAbilities[pk.ability]) {
@@ -4079,6 +4455,10 @@ function activateEntryAbility(pk, isPlayer, fromMega = false) {
     if (fromMega && hasAbility(pk, 'speed-boost')) logMsg(`⚙️ ${escapeHTML(pk.name)} はターン終了時に加速する！`);
     triggerEntryHeldItems(pk);
     updateParadoxBoost(pk, true);
+    syncForecastForm(pk, true);
+    syncFlowerGiftForm(pk, true);
+    syncHpDependentAbilityForms(pk, true);
+    activateTeraShift(pk, true);
 }
 
 function triggerFaintAbilities(fainted, source = null, move = null) {
@@ -4324,6 +4704,8 @@ function estimateMoveDamage(atk, def, move, isPlayer = false) {
     let attack = source.stats[attackStat] * stageMultiplier(source.modifiers[attackStat]);
     let defense = def.stats[defenseStat] * stageMultiplier(def.modifiers[defenseStat]);
     if (physical && ['huge-power', 'pure-power'].includes(source.ability)) attack *= 2;
+    if (physical && flowerGiftBoostActive(source)) attack *= 1.5;
+    if (!physical && flowerGiftBoostActive(def)) defense *= 1.5;
     if (hasItem(atk, 'choice-band') && physical) attack *= 1.5;
     if (hasItem(atk, 'choice-specs') && !physical) attack *= 1.5;
     if (hasItem(def, 'assault-vest') && !physical) defense *= 1.5;
@@ -5504,6 +5886,8 @@ async function performAction(atk, def, move, isPlayer) {
         logMsg(`🎒 ${escapeHTML(atk.name)} は ${escapeHTML(itemName(flingData.item))} を投げようとしている！（威力${flingData.power}）`);
     }
 
+    armGulpMissileForMove(atk, move, true);
+
     const accuracyResult = checkAccuracy(atk, def, move);
     if (!accuracyResult) {
         logMsg('💨 攻撃は外れた！');
@@ -5757,6 +6141,7 @@ function hiddenPowerType(pokemon) {
 
 function effectiveMoveType(atk, move) {
     if (move.origName === 'hidden-power') return hiddenPowerType(atk);
+    if (move.origName === 'aura-wheel' && atk?.speciesKey === 'morpeko' && hasAbility(atk, 'hunger-switch')) return atk.hungerSwitchForm === 'hangry' ? 'dark' : 'electric';
     if (move.origName === 'judgment' && itemEffectActive(atk) && TYPE_PLATE_ITEMS[atk.item]) return TYPE_PLATE_ITEMS[atk.item];
     if (move.origName === 'multi-attack' && itemEffectActive(atk) && TYPE_MEMORY_ITEMS[atk.item]) return TYPE_MEMORY_ITEMS[atk.item];
     if (move.origName === 'techno-blast' && itemEffectActive(atk) && TYPE_DRIVE_ITEMS[atk.item]) return TYPE_DRIVE_ITEMS[atk.item];
@@ -5833,9 +6218,19 @@ function fixedDamage(atk, def, move) {
     }
 }
 
+function applyDefensiveTypeAbilityMultiplier(atk, def, rawTypeMod) {
+    let typeMod = Number(rawTypeMod);
+    // テラスシェル: HP満タン時に受ける攻撃技の相性を「いまひとつ」にする。
+    // 本来の無効相性は0のまま維持し、かたやぶり系には無視される。
+    if (typeMod > 0 && def?.stats?.hp === def?.stats?.maxHp && hasEffectiveAbility(def, 'tera-shell', atk)) {
+        typeMod = 0.5;
+    }
+    return typeMod;
+}
+
 function calculateDamage(atk, def, move, isPlayer, hitIndex = 0) {
     const moveType = effectiveMoveType(atk, move);
-    const typeMod = getAttackTypeMultiplier(atk, moveType, def, move);
+    const typeMod = applyDefensiveTypeAbilityMultiplier(atk, def, getAttackTypeMultiplier(atk, moveType, def, move));
     if (typeMod === 0) return { damage: 0, typeMod, isCritical: false, missedByImmunity: true };
     if (OHKO_MOVES.has(move.origName)) return { damage: def.stats.hp, typeMod, isCritical: false, missedByImmunity: false };
     const fixed = fixedDamage(atk, def, move);
@@ -6002,6 +6397,7 @@ async function applyAbilityOnDamagingHit(atk, def, move, dealt, result, isPlayer
     const defenderAbilityActive = !ignoresAbilities(atk, def);
     const alive = def.stats.hp > 0;
 
+    if (defenderAbilityActive) triggerGulpMissileOnHit(def, atk);
     if (defenderAbilityActive && hasAbility(def, 'cotton-down') && atk.stats.hp > 0) changeStat(atk, 'speed', -1, def);
     if (defenderAbilityActive && alive && hasAbility(def, 'stamina')) changeStat(def, 'defense', 1, def);
     if (defenderAbilityActive && alive && hasAbility(def, 'water-compaction') && moveType === 'water') changeStat(def, 'defense', 2, def);
@@ -6406,11 +6802,11 @@ async function handleSpecialStatusMove(atk, def, move, isPlayer) {
             for (const key of keys) [State.field.player[key], State.field.enemy[key]] = [State.field.enemy[key], State.field.player[key]];
             logMsg('🔄 お互いの場の効果が入れ替わった！'); return true;
         }
-        case 'rain-dance': State.field.weather = { name: 'rain', turns: turnsForWeather('damp-rock') }; logMsg('🌧️ 雨が降り始めた！'); refreshActiveParadoxBoosts(true); return true;
-        case 'sunny-day': State.field.weather = { name: 'sun', turns: turnsForWeather('heat-rock') }; logMsg('☀️ 日差しが強くなった！'); refreshActiveParadoxBoosts(true); return true;
-        case 'sandstorm': State.field.weather = { name: 'sandstorm', turns: turnsForWeather('smooth-rock') }; logMsg('🏜️ 砂あらしが吹き始めた！'); refreshActiveParadoxBoosts(true); return true;
-        case 'hail': State.field.weather = { name: 'hail', turns: turnsForWeather('icy-rock') }; logMsg('🌨️ あられが降り始めた！'); refreshActiveParadoxBoosts(true); return true;
-        case 'snowscape': State.field.weather = { name: 'snow', turns: turnsForWeather('icy-rock') }; logMsg('❄️ 雪が降り始めた！'); refreshActiveParadoxBoosts(true); return true;
+        case 'rain-dance': State.field.weather = { name: 'rain', turns: turnsForWeather('damp-rock') }; logMsg('🌧️ 雨が降り始めた！'); refreshActiveParadoxBoosts(true); refreshWeatherDependentForms(true); return true;
+        case 'sunny-day': State.field.weather = { name: 'sun', turns: turnsForWeather('heat-rock') }; logMsg('☀️ 日差しが強くなった！'); refreshActiveParadoxBoosts(true); refreshWeatherDependentForms(true); return true;
+        case 'sandstorm': State.field.weather = { name: 'sandstorm', turns: turnsForWeather('smooth-rock') }; logMsg('🏜️ 砂あらしが吹き始めた！'); refreshActiveParadoxBoosts(true); refreshWeatherDependentForms(true); return true;
+        case 'hail': State.field.weather = { name: 'hail', turns: turnsForWeather('icy-rock') }; logMsg('🌨️ あられが降り始めた！'); refreshActiveParadoxBoosts(true); refreshWeatherDependentForms(true); return true;
+        case 'snowscape': State.field.weather = { name: 'snow', turns: turnsForWeather('icy-rock') }; logMsg('❄️ 雪が降り始めた！'); refreshActiveParadoxBoosts(true); refreshWeatherDependentForms(true); return true;
         case 'electric-terrain': State.field.terrain = { name: 'electric', turns: hasItem(atk, 'terrain-extender') ? 8 : 5 }; logMsg('⚡ エレキフィールドになった！'); refreshActiveFieldItems(); return true;
         case 'grassy-terrain': State.field.terrain = { name: 'grassy', turns: hasItem(atk, 'terrain-extender') ? 8 : 5 }; logMsg('🌱 グラスフィールドになった！'); refreshActiveFieldItems(); return true;
         case 'misty-terrain': State.field.terrain = { name: 'misty', turns: hasItem(atk, 'terrain-extender') ? 8 : 5 }; logMsg('🌫️ ミストフィールドになった！'); refreshActiveFieldItems(); return true;
@@ -6745,6 +7141,8 @@ async function applyEndTurnEffects() {
             if (pk.volatile.perish === 0) pk.stats.hp = 0;
         }
         syncShieldsDownForm(pk, isPlayer, true);
+        syncHpDependentAbilityForms(pk, true);
+        toggleHungerSwitch(pk, true);
         updateBattleUI();
         await sleep(180);
     }
@@ -6763,7 +7161,7 @@ function decrementTimers() {
     for (const side of [State.field.player, State.field.enemy]) {
         for (const key of ['reflect', 'lightScreen', 'tailwind']) if (side[key] > 0) side[key]--;
     }
-    if (State.field.weather.turns > 0 && --State.field.weather.turns === 0) { State.field.weather.name = 'none'; logMsg('🌤️ 天候が元に戻った。'); refreshActiveParadoxBoosts(true); }
+    if (State.field.weather.turns > 0 && --State.field.weather.turns === 0) { State.field.weather.name = 'none'; logMsg('🌤️ 天候が元に戻った。'); refreshActiveParadoxBoosts(true); refreshWeatherDependentForms(true); }
     if (State.field.terrain.turns > 0 && --State.field.terrain.turns === 0) { State.field.terrain.name = 'none'; logMsg('🌍 フィールドが元に戻った。'); refreshActiveParadoxBoosts(true); }
     if (State.field.trickRoom > 0 && --State.field.trickRoom === 0) logMsg('🌀 トリックルームが元に戻った。');
     for (const pk of [State.playerTeam[State.activePlayerIdx], State.enemyTeam[State.activeEnemyIdx]]) {
@@ -6811,6 +7209,9 @@ async function applyHazards(pk, isPlayer) {
     if (pk.stats.hp > 0 && side.stickyWeb && isGrounded(pk)) changeStat(pk, 'speed', -1, null);
     if (pk.stats.hp > 0) triggerBerries(pk);
     syncShieldsDownForm(pk, isPlayer, true);
+    syncHpDependentAbilityForms(pk, true);
+    syncForecastForm(pk, true);
+    syncFlowerGiftForm(pk, true);
     updateBattleUI();
     await sleep(350);
 }
@@ -6823,7 +7224,9 @@ function resetOnSwitch(pk, isLeaving = true) {
             if (other?.volatile?.infatuatedBy === pk) other.volatile.infatuatedBy = null;
         }
     }
+    const changedWeatherSuppression = isLeaving && ['cloud-nine','air-lock','desolate-land','primordial-sea'].includes(pk.ability);
     if (isLeaving && hasAbility(pk, 'stance-change')) revertStanceChange(pk);
+    if (isLeaving) resetTemporaryAbilityFormsOnSwitch(pk);
     if (isLeaving) activateZeroToHeroOnSwitchOut(pk);
     if (isLeaving && hasAbility(pk, 'natural-cure') && pk.status !== 'none') { pk.status = 'none'; pk.statusTurns = 0; pk.toxicCounter = 0; pk.volatile.nightmare = false; }
     if (isLeaving && hasAbility(pk, 'regenerator') && pk.stats.hp > 0) pk.stats.hp = Math.min(pk.stats.maxHp, pk.stats.hp + Math.floor(pk.stats.maxHp / 3));
@@ -6838,6 +7241,7 @@ function resetOnSwitch(pk, isLeaving = true) {
     pk.toxicCounter = pk.status === 'tox' ? 1 : 0;
     pk.turnsActive = 0;
     pk.lastDamageTaken = null;
+    if (changedWeatherSuppression) queueMicrotask(() => refreshWeatherDependentForms(true));
 }
 
 async function checkFaint(preferredPlayerIndex = null, preferredEnemyIndex = null) {

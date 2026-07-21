@@ -71,6 +71,19 @@
         #field-status-bar { position: absolute; top: 10px; left: 10px; background: var(--field-bar-bg); color: white; padding: 5px 10px; border-radius: 5px; font-size: 11px; font-weight: bold; display: flex; flex-direction: column; gap: 2px; z-index: 10; transition: background .25s ease; }
         .field-item { color: #f1c40f; }
 
+        .theme-trainer-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+        .theme-trainer { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 2px; opacity: .30; filter: drop-shadow(0 2px 5px rgba(0,0,0,.18)); transition: opacity .25s ease, transform .25s ease; }
+        .theme-trainer.hidden, .theme-trainer-layer.hidden { display: none !important; }
+        .theme-trainer.player { right: 18px; bottom: 24px; }
+        .theme-trainer.enemy { left: 16px; top: 54px; }
+        .theme-trainer img { width: 72px; height: 72px; object-fit: contain; image-rendering: pixelated; image-rendering: crisp-edges; }
+        .theme-trainer-label { max-width: 110px; padding: 2px 6px; border-radius: 999px; background: rgba(255,255,255,.78); color: var(--primary); font-size: 10px; font-weight: 900; line-height: 1.2; letter-spacing: .02em; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+        .theme-trainer-gallery { position: absolute; left: 10px; right: 10px; top: 8px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px 6px; justify-items: center; align-items: start; pointer-events: none; opacity: .26; }
+        .theme-trainer-gallery.hidden { display: none !important; }
+        .theme-trainer-gallery-item { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; }
+        .theme-trainer-gallery-item img { width: 34px; height: 34px; object-fit: contain; image-rendering: pixelated; image-rendering: crisp-edges; }
+        .theme-trainer-gallery-item span { max-width: 48px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 4px; border-radius: 999px; background: rgba(255,255,255,.72); color: var(--primary); font-size: 7px; font-weight: 900; line-height: 1.15; box-shadow: 0 1px 3px rgba(0,0,0,.10); }
+
         .moves-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 6px; min-height: 230px; }
         .move-btn { margin: 0; padding: 8px; min-width: 0; min-height: 110px; font-size: 14px; text-align: left; display: flex; flex-direction: column; justify-content: flex-start; gap: 3px; overflow: hidden; }
         .move-description { font-size: 10px; line-height: 1.35; font-weight: normal; opacity: .9; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
@@ -286,6 +299,13 @@
             .status-board { font-size: 12px; }
             .status-meta { font-size: 10px; }
             #field-status-bar { max-width: 49%; padding: 4px 6px; font-size: 9px; }
+            .theme-trainer.player { right: 10px; bottom: 16px; }
+            .theme-trainer.enemy { left: 8px; top: 46px; }
+            .theme-trainer img { width: 56px; height: 56px; }
+            .theme-trainer-label { max-width: 84px; font-size: 8px; padding: 2px 5px; }
+            .theme-trainer-gallery { left: 6px; right: 6px; top: 6px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px 4px; }
+            .theme-trainer-gallery-item img { width: 26px; height: 26px; }
+            .theme-trainer-gallery-item span { max-width: 40px; font-size: 6px; padding: 1px 3px; }
             .moves-grid {
                 height: auto;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -347,6 +367,9 @@
             .enemy-side .status-board, .player-side .status-board { width: min(48vw, 154px); padding: 6px; }
             .status-board { font-size: 11px; }
             .hp-bar-bg { margin: 3px 0; }
+            .theme-trainer img { width: 48px; height: 48px; }
+            .theme-trainer-gallery-item img { width: 22px; height: 22px; }
+            .theme-trainer-gallery-item span { max-width: 34px; font-size: 5px; }
             .move-btn { min-height: 100px; font-size: 12px; padding: 7px 6px; }
             .right-pane { height: 210px; }
         }
@@ -426,6 +449,17 @@
             <div class="left-pane">
                 <div class="battle-area">
                     <div id="field-status-bar"></div>
+                    <div id="theme-trainer-layer" class="theme-trainer-layer hidden" aria-hidden="true">
+                        <div id="theme-trainer-gallery" class="theme-trainer-gallery hidden"></div>
+                        <div id="theme-trainer-enemy" class="theme-trainer enemy hidden">
+                            <img id="theme-trainer-enemy-img" src="" alt="">
+                            <span id="theme-trainer-enemy-label" class="theme-trainer-label"></span>
+                        </div>
+                        <div id="theme-trainer-player" class="theme-trainer player hidden">
+                            <img id="theme-trainer-player-img" src="" alt="">
+                            <span id="theme-trainer-player-label" class="theme-trainer-label"></span>
+                        </div>
+                    </div>
                     <div class="enemy-side">
                         <div class="status-board" id="enemy-status"></div>
                         <img id="enemy-img" class="pokemon-img" src="" alt="相手のポケモン">
@@ -486,8 +520,12 @@
                 <option value="platinum">プラチナ</option>
                 <option value="black">ブラック</option>
                 <option value="white">ホワイト</option>
+                <option value="kanto-pokedex">初代ポケモン図鑑風</option>
+                <option value="stadium">バトルスタジアム風</option>
+                <option value="elite-four">四天王戦風</option>
+                <option value="champion">チャンピオン戦風</option>
             </select>
-            <div class="theme-help">選んだテーマは保存され、次回以降の起動時にも自動で反映されます。</div>
+            <div class="theme-help">選んだテーマは保存され、次回以降の起動時にも自動で反映されます。追加した4テーマでは、雰囲気づけとして小さなネームドキャラクターのバトルスプライトを控えめに表示します。</div>
         </div>
         <details id="implemented-items-details" class="implemented-items">
             <summary>実装済みもちもの一覧を見る</summary>
@@ -1168,7 +1206,39 @@ const THEMES = Object.freeze({
     pearl: { label: 'パール', vars: { '--primary': '#c07aa5', '--primary-hover': '#9a5b82', '--bg': '#fff7fb', '--body-bg': 'radial-gradient(circle at top, #fff0f8 0%, #fff7fb 56%, #efd5e4 100%)', '--accent': '#efb3d2', '--accent-2': '#8e44ad', '--container-bg': 'rgba(255,252,254,0.96)', '--container-border': '#ebd0df', '--battle-bg': 'linear-gradient(to bottom, #fbd3e9, #bbd2c5)', '--log-header-bg': '#b06e97', '--right-pane-border': '#d3a8bf', '--status-board-bg': 'rgba(255,252,254,0.96)', '--field-bar-bg': 'rgba(176,110,151,.68)', '--theme-chip-bg': 'rgba(192,122,165,.10)', '--logo-fill': 'linear-gradient(180deg, #fffefc 0%, #ffe4f1 45%, #f5bfd9 100%)', '--logo-stroke': '#87608c', '--logo-glow': 'rgba(239,179,210,.30)', '--logo-sub': '#9a5b82' } },
     platinum: { label: 'プラチナ', vars: { '--primary': '#666f7e', '--primary-hover': '#4f5662', '--bg': '#f6f7f9', '--body-bg': 'radial-gradient(circle at top, #f4f6fb 0%, #f6f7f9 55%, #d7dde5 100%)', '--accent': '#c9d1d9', '--accent-2': '#8e44ad', '--container-bg': 'rgba(253,253,254,0.96)', '--container-border': '#d7dde3', '--battle-bg': 'linear-gradient(to bottom, #e6e9f0, #eef1f5)', '--log-header-bg': '#5d6570', '--right-pane-border': '#b9c0c8', '--status-board-bg': 'rgba(255,255,255,0.96)', '--field-bar-bg': 'rgba(93,101,112,.68)', '--theme-chip-bg': 'rgba(102,111,126,.10)', '--logo-fill': 'linear-gradient(180deg, #ffffff 0%, #eceff2 45%, #c7d0d9 100%)', '--logo-stroke': '#5b6471', '--logo-glow': 'rgba(201,209,217,.28)', '--logo-sub': '#4f5662' } },
     black: { label: 'ブラック', vars: { '--primary': '#1f1f23', '--primary-hover': '#050507', '--bg': '#eff0f3', '--body-bg': 'radial-gradient(circle at top, #4b4f57 0%, #25272d 20%, #111317 60%, #0a0b0d 100%)', '--accent': '#5dade2', '--accent-2': '#f1c40f', '--container-bg': 'rgba(245,247,250,0.96)', '--container-border': '#4d5560', '--battle-bg': 'linear-gradient(to bottom, #434343, #000000)', '--log-header-bg': '#15171a', '--right-pane-border': '#56606a', '--status-board-bg': 'rgba(250,250,251,0.97)', '--field-bar-bg': 'rgba(12,13,16,.74)', '--theme-chip-bg': 'rgba(31,31,35,.08)', '--logo-fill': 'linear-gradient(180deg, #ffffff 0%, #eceff4 36%, #9eb7d2 100%)', '--logo-stroke': '#1e3f8f', '--logo-glow': 'rgba(93,173,226,.34)', '--logo-sub': '#1f1f23' } },
-    white: { label: 'ホワイト', vars: { '--primary': '#6b7584', '--primary-hover': '#545d69', '--bg': '#ffffff', '--body-bg': 'radial-gradient(circle at top, #ffffff 0%, #fbfcfd 55%, #e5ebf1 100%)', '--accent': '#7aa7d8', '--accent-2': '#b8bec7', '--container-bg': 'rgba(255,255,255,0.98)', '--container-border': '#d8dfe6', '--battle-bg': 'linear-gradient(to bottom, #fdfbfb, #ebedee)', '--log-header-bg': '#7c8797', '--right-pane-border': '#c8d0d8', '--status-board-bg': 'rgba(255,255,255,0.98)', '--field-bar-bg': 'rgba(124,135,151,.70)', '--theme-chip-bg': 'rgba(107,117,132,.10)', '--logo-fill': 'linear-gradient(180deg, #ffffff 0%, #fff9d6 34%, #dfe9f3 100%)', '--logo-stroke': '#8693ab', '--logo-glow': 'rgba(122,167,216,.24)', '--logo-sub': '#545d69' } }
+    white: { label: 'ホワイト', vars: { '--primary': '#6b7584', '--primary-hover': '#545d69', '--bg': '#ffffff', '--body-bg': 'radial-gradient(circle at top, #ffffff 0%, #fbfcfd 55%, #e5ebf1 100%)', '--accent': '#7aa7d8', '--accent-2': '#b8bec7', '--container-bg': 'rgba(255,255,255,0.98)', '--container-border': '#d8dfe6', '--battle-bg': 'linear-gradient(to bottom, #fdfbfb, #ebedee)', '--log-header-bg': '#7c8797', '--right-pane-border': '#c8d0d8', '--status-board-bg': 'rgba(255,255,255,0.98)', '--field-bar-bg': 'rgba(124,135,151,.70)', '--theme-chip-bg': 'rgba(107,117,132,.10)', '--logo-fill': 'linear-gradient(180deg, #ffffff 0%, #fff9d6 34%, #dfe9f3 100%)', '--logo-stroke': '#8693ab', '--logo-glow': 'rgba(122,167,216,.24)', '--logo-sub': '#545d69' } },
+    'kanto-pokedex': {
+        label: '初代ポケモン図鑑風',
+        vars: { '--primary': '#506337', '--primary-hover': '#394826', '--bg': '#f4f0d4', '--body-bg': 'radial-gradient(circle at top, #fbf7dc 0%, #f4f0d4 58%, #d7ddb2 100%)', '--accent': '#6b8a3c', '--accent-2': '#8b6f3e', '--container-bg': 'rgba(252,250,236,0.97)', '--container-border': '#c7c594', '--battle-bg': 'linear-gradient(to bottom, #d9ddb3, #b0ba77)', '--log-header-bg': '#60713b', '--right-pane-border': '#9faa72', '--status-board-bg': 'rgba(252,250,236,0.96)', '--field-bar-bg': 'rgba(70,84,34,.72)', '--theme-chip-bg': 'rgba(80,99,55,.12)', '--logo-fill': 'linear-gradient(180deg, #fef7c6 0%, #e4dc9e 52%, #b7be70 100%)', '--logo-stroke': '#4f6530', '--logo-glow': 'rgba(107,138,60,.24)', '--logo-sub': '#4b5632' },
+        overlay: { player: { name: 'レッド', preset: 'red' }, enemy: { name: 'オーキド博士', preset: 'oak' } }
+    },
+    stadium: {
+        label: 'バトルスタジアム風',
+        vars: { '--primary': '#294a8c', '--primary-hover': '#1f3564', '--bg': '#eef5ff', '--body-bg': 'radial-gradient(circle at top, #f8fbff 0%, #eef5ff 42%, #bfd4ff 100%)', '--accent': '#48b3ff', '--accent-2': '#ffcf54', '--container-bg': 'rgba(248,252,255,0.97)', '--container-border': '#bbcdf0', '--battle-bg': 'linear-gradient(to bottom, #2d5ec7 0%, #3f7ddb 34%, #6ec4ff 35%, #1d4d8f 100%)', '--log-header-bg': '#25457f', '--right-pane-border': '#88a7db', '--status-board-bg': 'rgba(250,253,255,0.96)', '--field-bar-bg': 'rgba(26,56,111,.74)', '--theme-chip-bg': 'rgba(41,74,140,.11)', '--logo-fill': 'linear-gradient(180deg, #ffffff 0%, #bfe5ff 45%, #6ab6ff 100%)', '--logo-stroke': '#24498a', '--logo-glow': 'rgba(72,179,255,.26)', '--logo-sub': '#1f3564' },
+        overlay: { player: { name: 'レッド', preset: 'red' }, enemy: { name: 'グリーン', preset: 'green' } }
+    },
+    'elite-four': {
+        label: '四天王戦風',
+        vars: { '--primary': '#5d2444', '--primary-hover': '#431a31', '--bg': '#f8f1f7', '--body-bg': 'radial-gradient(circle at top, #fff7fd 0%, #f8f1f7 46%, #d7b3cf 100%)', '--accent': '#c96cb0', '--accent-2': '#f3d27b', '--container-bg': 'rgba(255,250,254,0.97)', '--container-border': '#e0bfd6', '--battle-bg': 'linear-gradient(to bottom, #3e1830 0%, #5b2142 35%, #8b2f5f 100%)', '--log-header-bg': '#4b1e38', '--right-pane-border': '#a76b90', '--status-board-bg': 'rgba(255,250,254,0.96)', '--field-bar-bg': 'rgba(55,20,40,.74)', '--theme-chip-bg': 'rgba(93,36,68,.11)', '--logo-fill': 'linear-gradient(180deg, #fff2bf 0%, #ffc97e 42%, #d36db1 100%)', '--logo-stroke': '#582649', '--logo-glow': 'rgba(201,108,176,.28)', '--logo-sub': '#431a31' },
+    },
+    champion: {
+        label: 'チャンピオン戦風',
+        vars: { '--primary': '#2f416b', '--primary-hover': '#1f2b4b', '--bg': '#f7f6ff', '--body-bg': 'radial-gradient(circle at top, #ffffff 0%, #f7f6ff 40%, #d9cff6 100%)', '--accent': '#b59cff', '--accent-2': '#f5d26c', '--container-bg': 'rgba(252,252,255,0.97)', '--container-border': '#d8d2ee', '--battle-bg': 'linear-gradient(to bottom, #0e1730 0%, #1f2f60 40%, #5e4bb8 100%)', '--log-header-bg': '#25355d', '--right-pane-border': '#8e90c7', '--status-board-bg': 'rgba(253,253,255,0.96)', '--field-bar-bg': 'rgba(14,23,48,.78)', '--theme-chip-bg': 'rgba(47,65,107,.11)', '--logo-fill': 'linear-gradient(180deg, #fff9d3 0%, #f6df9a 40%, #c5b2ff 100%)', '--logo-stroke': '#32456d', '--logo-glow': 'rgba(181,156,255,.30)', '--logo-sub': '#1f2b4b' },
+        overlay: { gallery: [
+            { name: 'グリーン', preset: 'green' },
+            { name: 'ワタル', preset: 'lance' },
+            { name: 'ダイゴ', preset: 'steven' },
+            { name: 'ミクリ', preset: 'wallace' },
+            { name: 'シロナ', preset: 'cynthia' },
+            { name: 'アデク', preset: 'alder' },
+            { name: 'アイリス', preset: 'iris' },
+            { name: 'カルネ', preset: 'diantha' },
+            { name: 'ククイ', preset: 'kukui' },
+            { name: 'ハウ', preset: 'hau' },
+            { name: 'ダンデ', preset: 'leon' },
+            { name: 'オモダカ', preset: 'geeta' }
+        ] }
+    }
 });
 
 const STRUGGLE_MOVE = Object.freeze({
@@ -1650,6 +1720,121 @@ function parseIdFromUrl(url) {
     const match = String(url).match(/\/(\d+)\/?$/);
     return match ? Number(match[1]) : null;
 }
+const THEME_TRAINER_SPRITE_CACHE = new Map();
+const THEME_TRAINER_PRESETS = Object.freeze({
+    red: { skin: '#f4c29a', hair: '#2b1b12', outfit: '#2e73d6', accent: '#f2d34b', pants: '#34506f', boots: '#4b2f1f', hat: '#d83d3d', hatTrim: '#ffffff', style: 'cap' },
+    green: { skin: '#f0be95', hair: '#7b5728', outfit: '#cf6e2a', accent: '#4a7d55', pants: '#49658c', boots: '#473122', hat: '#4c7a4a', hatTrim: '#dbe6d4', style: 'cap' },
+    oak: { skin: '#efc7a2', hair: '#d7dde4', outfit: '#ffffff', accent: '#ab4b4b', pants: '#8c96a3', boots: '#5a473a', hat: '#d7dde4', hatTrim: '#ffffff', style: 'lab' },
+    bruno: { skin: '#bc7c57', hair: '#2a2017', outfit: '#c86d31', accent: '#f0d8b2', pants: '#7f3d22', boots: '#44271c', hat: '#9bc7f2', hatTrim: '#9bc7f2', style: 'fighter' },
+    cynthia: { skin: '#f2c4a0', hair: '#f2da84', outfit: '#1f1f28', accent: '#e7e7eb', pants: '#20202b', boots: '#67503f', hat: '#111', hatTrim: '#111', style: 'champion' },
+    lance: { skin: '#efc19b', hair: '#c7493c', outfit: '#7b1f1f', accent: '#a4c0ff', pants: '#383a48', boots: '#2d2130', hat: '#c7493c', hatTrim: '#a4c0ff', style: 'champion' },
+    steven: { skin: '#efc7a2', hair: '#d9edf8', outfit: '#364c64', accent: '#9fd0ff', pants: '#55697d', boots: '#433a35', hat: '#d9edf8', hatTrim: '#d9edf8', style: 'champion' },
+    wallace: { skin: '#efbe98', hair: '#49a4d9', outfit: '#8c4bd0', accent: '#d7ffff', pants: '#5f47a2', boots: '#40305f', hat: '#49a4d9', hatTrim: '#d7ffff', style: 'champion' },
+    alder: { skin: '#d2a27d', hair: '#eaf0d6', outfit: '#7f4a2f', accent: '#f0deb4', pants: '#b67d49', boots: '#5a3824', hat: '#eaf0d6', hatTrim: '#f0deb4', style: 'champion' },
+    iris: { skin: '#8d5d3d', hair: '#7e2fb2', outfit: '#c46920', accent: '#e9a3f2', pants: '#7c40b8', boots: '#4a2e22', hat: '#7e2fb2', hatTrim: '#e9a3f2', style: 'champion' },
+    diantha: { skin: '#efc7a6', hair: '#f1efb8', outfit: '#14181e', accent: '#ff9fbc', pants: '#202430', boots: '#594049', hat: '#f1efb8', hatTrim: '#ff9fbc', style: 'champion' },
+    kukui: { skin: '#c6936d', hair: '#f3f3f3', outfit: '#ffffff', accent: '#e54545', pants: '#3c6940', boots: '#67523b', hat: '#f3f3f3', hatTrim: '#e54545', style: 'lab' },
+    hau: { skin: '#c98c63', hair: '#4f3a2c', outfit: '#f39a2c', accent: '#4fb26f', pants: '#4d8d4e', boots: '#5d4430', hat: '#4f3a2c', hatTrim: '#4fb26f', style: 'cap' },
+    leon: { skin: '#dcb08e', hair: '#5c2a64', outfit: '#7a1e30', accent: '#ffd255', pants: '#ffffff', boots: '#3f3149', hat: '#5c2a64', hatTrim: '#ffd255', style: 'champion' },
+    geeta: { skin: '#d9ad90', hair: '#1b2a4f', outfit: '#4d3f86', accent: '#dcd3ff', pants: '#2d285a', boots: '#29213a', hat: '#1b2a4f', hatTrim: '#dcd3ff', style: 'champion' }
+});
+function svgDataUri(svg) {
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+function buildThemeTrainerSprite(presetKey, side = 'enemy') {
+    const cacheKey = `${presetKey}:${side}`;
+    if (THEME_TRAINER_SPRITE_CACHE.has(cacheKey)) return THEME_TRAINER_SPRITE_CACHE.get(cacheKey);
+    const p = THEME_TRAINER_PRESETS[presetKey] || THEME_TRAINER_PRESETS.red;
+    const flip = side === 'player' ? 'translate(64,0) scale(-1,1)' : '';
+    const accessory = p.style === 'lab'
+        ? `<rect x="20" y="24" width="24" height="23" rx="2" fill="#f7f7fb"/><rect x="29" y="24" width="6" height="23" fill="#d9dde6"/><rect x="22" y="29" width="6" height="5" fill="${p.accent}"/>`
+        : p.style === 'fighter'
+            ? `<rect x="18" y="11" width="28" height="3" fill="${p.hat}"/><rect x="19" y="24" width="26" height="18" rx="2" fill="${p.outfit}"/><rect x="30" y="25" width="4" height="18" fill="${p.accent}"/>`
+            : p.style === 'champion'
+                ? `<rect x="19" y="22" width="26" height="24" rx="3" fill="${p.outfit}"/><rect x="24" y="22" width="16" height="5" fill="${p.accent}"/><rect x="29" y="27" width="6" height="19" fill="#5d4aa7"/>`
+                : `<rect x="21" y="22" width="22" height="21" rx="2" fill="${p.outfit}"/><rect x="26" y="22" width="12" height="4" fill="${p.accent}"/>`;
+    const hat = p.style === 'lab' || p.style === 'champion'
+        ? ''
+        : `<rect x="20" y="10" width="24" height="6" rx="2" fill="${p.hat}"/><rect x="18" y="15" width="19" height="3" fill="${p.hatTrim}"/>`;
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <g transform="${flip}">
+    <ellipse cx="32" cy="58" rx="14" ry="4" fill="rgba(0,0,0,.14)"/>
+    <rect x="24" y="10" width="16" height="4" rx="1" fill="${p.hair}"/>
+    ${hat}
+    <rect x="24" y="14" width="16" height="11" rx="2" fill="${p.skin}"/>
+    <rect x="22" y="17" width="4" height="4" fill="${p.hair}" opacity=".8"/>
+    <rect x="38" y="17" width="2" height="4" fill="${p.hair}" opacity=".8"/>
+    ${accessory}
+    <rect x="17" y="25" width="6" height="16" rx="2" fill="${p.outfit}"/>
+    <rect x="41" y="25" width="6" height="16" rx="2" fill="${p.outfit}"/>
+    <rect x="19" y="39" width="10" height="14" rx="2" fill="${p.pants}"/>
+    <rect x="35" y="39" width="10" height="14" rx="2" fill="${p.pants}"/>
+    <rect x="18" y="52" width="12" height="5" rx="2" fill="${p.boots}"/>
+    <rect x="34" y="52" width="12" height="5" rx="2" fill="${p.boots}"/>
+    <circle cx="28" cy="19" r="1.2" fill="#2c2c2c"/>
+    <circle cx="36" cy="19" r="1.2" fill="#2c2c2c"/>
+  </g>
+</svg>`;
+    const uri = svgDataUri(svg);
+    THEME_TRAINER_SPRITE_CACHE.set(cacheKey, uri);
+    return uri;
+}
+function setThemeTrainerSlot(side, data) {
+    const root = document.getElementById(`theme-trainer-${side}`);
+    const img = document.getElementById(`theme-trainer-${side}-img`);
+    const label = document.getElementById(`theme-trainer-${side}-label`);
+    if (!root || !img || !label) return;
+    if (!data) {
+        root.classList.add('hidden');
+        img.removeAttribute('src');
+        label.textContent = '';
+        return;
+    }
+    img.src = buildThemeTrainerSprite(data.preset, side);
+    img.alt = '';
+    label.textContent = data.name || '';
+    root.classList.remove('hidden');
+}
+function setThemeTrainerGallery(items = []) {
+    const gallery = document.getElementById('theme-trainer-gallery');
+    if (!gallery) return;
+    gallery.innerHTML = '';
+    if (!Array.isArray(items) || !items.length) {
+        gallery.classList.add('hidden');
+        return;
+    }
+    const fragment = document.createDocumentFragment();
+    items.forEach(item => {
+        const wrap = document.createElement('div');
+        wrap.className = 'theme-trainer-gallery-item';
+        const img = document.createElement('img');
+        img.src = buildThemeTrainerSprite(item?.preset || 'red', 'enemy');
+        img.alt = '';
+        const label = document.createElement('span');
+        label.textContent = item?.name || '';
+        wrap.append(img, label);
+        fragment.appendChild(wrap);
+    });
+    gallery.appendChild(fragment);
+    gallery.classList.remove('hidden');
+}
+function updateThemeTrainerDecor(themeKey = getSelectedThemeKey()) {
+    const layer = document.getElementById('theme-trainer-layer');
+    if (!layer) return;
+    const overlay = THEMES[themeKey]?.overlay || null;
+    if (!overlay) {
+        layer.classList.add('hidden');
+        setThemeTrainerSlot('player', null);
+        setThemeTrainerSlot('enemy', null);
+        setThemeTrainerGallery([]);
+        return;
+    }
+    layer.classList.remove('hidden');
+    setThemeTrainerSlot('player', overlay.player || null);
+    setThemeTrainerSlot('enemy', overlay.enemy || null);
+    setThemeTrainerGallery(overlay.gallery || []);
+}
 function getThemeLabel(themeKey) {
     return THEMES[themeKey]?.label || THEMES.emerald.label;
 }
@@ -1666,6 +1851,7 @@ function applyTheme(themeKey) {
     if (label) label.textContent = `テーマ: ${theme.label}`;
     const select = document.getElementById('theme-select');
     if (select && select.value !== resolved) select.value = resolved;
+    updateThemeTrainerDecor(resolved);
     safeStorageSet(THEME_STORAGE_KEY, resolved);
 }
 function isMegaPokemonName(name) {

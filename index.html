@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>ウェブ版 バトルファクトリー 強制交代・イルカマン・性別修正版</title>
+    <title>ウェブ版 バトルファクトリー 品質改善版 v9</title>
     <style>
         :root {
             --primary: #2c3e50;
@@ -74,12 +74,14 @@
         .moves-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 6px; min-height: 230px; }
         .move-btn { margin: 0; padding: 8px; min-width: 0; min-height: 110px; font-size: 14px; text-align: left; display: flex; flex-direction: column; justify-content: flex-start; gap: 3px; overflow: hidden; }
         .move-description { font-size: 10px; line-height: 1.35; font-weight: normal; opacity: .9; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+        .move-source { font-size: 9px; font-weight: 700; opacity: .72; }
+        .ruleset-note { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #eef4f8; border: 1px solid var(--container-border); font-size: 12px; line-height: 1.55; text-align: left; }
         .mega-controls { display: flex; justify-content: center; min-height: 44px; }
         .mega-btn { width: 100%; padding: 9px 14px; background: linear-gradient(135deg, #8e44ad, #e84393); box-shadow: 0 0 0 2px rgba(255,255,255,.55) inset, 0 2px 8px rgba(142,68,173,.35); }
         .mega-btn.pending { background: linear-gradient(135deg, #f39c12, #e74c3c); animation: megaPulse 1s infinite alternate; }
         .mega-btn.used { background: #6c757d; animation: none; }
         .mega-tag { display:inline-block; margin-left:5px; padding:1px 5px; border-radius:10px; font-size:10px; color:#fff; background:linear-gradient(135deg,#8e44ad,#e84393); vertical-align:middle; }
-        .mega-aura { filter: drop-shadow(0 0 10px rgba(232,67,147,.9)); animation: megaFlash .55s ease-in-out; }
+        .mega-aura { filter: drop-shadow(0 0 9px rgba(232,67,147,.72)); }
         .switch-controls { display: flex; justify-content: center; min-height: 44px; }
         .switch-btn { width: 100%; padding: 9px 14px; background: #2980b9; }
         .switch-panel { padding: 10px; border: 2px solid #2980b9; border-radius: 8px; background: #eef7fd; display: grid; gap: 7px; text-align: left; }
@@ -94,7 +96,6 @@
         .danger-btn { background: #c0392b; }
         .end-screen { padding: 45px 15px; }
         @keyframes megaPulse { from { transform:scale(1); filter:brightness(1); } to { transform:scale(1.015); filter:brightness(1.15); } }
-        @keyframes megaFlash { 0% { transform:scale(.85); opacity:.35; } 55% { transform:scale(1.18); opacity:1; } 100% { transform:scale(1); opacity:1; } }
         
         .log-header { background: var(--log-header-bg); color: white; padding: 10px; font-size: 16px; font-weight: bold; text-align: center; border-bottom: 2px solid var(--right-pane-border); transition: background .25s ease, border-color .25s ease; }
         #log-window { flex: 1; padding: 15px; text-align: left; font-size: 15px; font-family: 'Courier New', monospace; overflow-y: auto; line-height: 1.6; color: #ffffff !important; background: #000000; scroll-behavior: smooth;}
@@ -401,6 +402,7 @@
         <div class="title-meta">
             <span>連勝: <span id="streak" style="color:var(--accent); font-weight:bold;">0</span>／最高: <span id="max-streak" style="color:var(--accent-2); font-weight:bold;">0</span></span>
             <span id="current-theme-label" class="theme-badge">テーマ: エメラルド</span>
+            <span id="current-ruleset-label" class="theme-badge">ルール: 互換2026</span>
             <span id="factory-symbols" class="factory-symbols hidden" aria-label="獲得したシンボル"></span>
         </div>
     </div>
@@ -466,6 +468,7 @@
     <div class="modal-box">
         <h3 id="options-title">オプション</h3>
         <p>現在のゲームを終了すると、連勝記録は0に戻ります。</p>
+        <div class="ruleset-note"><b>採用ルール:</b> 第7世代以降型のメガシンカ行動順を使用します。公式値または取得済みデータがないZ-Aメガの推定能力値は、通常の抽選へ混ぜません。技説明は「作品内説明」と「本作生成説明」を区別して表示します。</div>
         <div class="theme-config">
             <label for="theme-select">テーマを選ぶ</label>
             <select id="theme-select" class="theme-select">
@@ -516,7 +519,28 @@
 'use strict';
 
 const POKE_API = 'https://pokeapi.co/api/v2';
-const CATALOG_CACHE_KEY = 'battle-factory-pokeapi-catalog-v13-form-ability-za-mega-audit';
+const PRODUCT_VERSION = 'v9';
+const RULESET = Object.freeze({
+    id: 'factory-compat-2026',
+    label: '複数世代互換2026',
+    megaSpeedMode: 'gen7-plus',
+    allowEstimatedZaMegas: false,
+    moveDescriptionPolicy: 'latest-valid-game-text-then-generated'
+});
+const FORM_EVENT = Object.freeze({
+    BATTLE_START: 'BATTLE_START', ON_ENTRY: 'ON_ENTRY', WEATHER_CHANGE: 'WEATHER_CHANGE',
+    AFTER_DAMAGE: 'AFTER_DAMAGE', AFTER_MOVE: 'AFTER_MOVE', ON_SWITCH_OUT: 'ON_SWITCH_OUT',
+    END_OF_TURN: 'END_OF_TURN', BATTLE_END: 'BATTLE_END'
+});
+const MEGA_DATA_STATUS = Object.freeze({
+    OFFICIAL: 'official', OFFICIAL_PARTIAL: 'official-partial', COMMUNITY: 'community-sourced',
+    COMPATIBILITY: 'turn-based-compatibility', ESTIMATED: 'estimated'
+});
+const MEGA_DATA_STATUS_LABELS = Object.freeze({
+    'official': '公式確定', 'official-partial': '公式部分確認', 'community-sourced': '取得済み対戦データ',
+    'turn-based-compatibility': 'ターン制互換', 'estimated': '推定値'
+});
+const CATALOG_CACHE_KEY = 'battle-factory-pokeapi-catalog-v16-quality-ruleset-v9';
 const CATALOG_TTL = 7 * 24 * 60 * 60 * 1000; // 一覧は7日間再利用して起動時通信を削減
 
 const TYPE_CHART = {
@@ -801,7 +825,7 @@ const ABILITY_NAMES = {
 
 // この1対1エンジンで効果を持つ特性。未登録特性は監査に表示し、効果があると誤認させない。
 const IMPLEMENTED_ABILITIES = new Set(Object.keys(ABILITY_NAMES));
-const ABILITY_REVIEW_VERSION = '2026-07-21-v15-complete-battle-form-and-za-mega-audit';
+const ABILITY_REVIEW_VERSION = '2026-07-21-v17-simple-mega-and-legend-sprite-recovery';
 const SINGLE_BATTLE_NO_EFFECT_ABILITIES = new Set([
     'run-away','illuminate','pickup','honey-gather','ball-fetch','plus','minus','friend-guard','healer','telepathy','symbiosis',
     'battery','power-spot','steely-spirit','commander','costar','hospitality','receiver','power-of-alchemy','curious-medicine'
@@ -979,7 +1003,7 @@ const SPECIAL_STATUS_MOVES = new Set([
     'reflect', 'light-screen', 'aurora-veil', 'stealth-rock', 'spikes', 'toxic-spikes', 'sticky-web', 'defog', 'court-change',
     'rain-dance', 'sunny-day', 'sandstorm', 'hail', 'snowscape', 'electric-terrain', 'grassy-terrain', 'misty-terrain', 'psychic-terrain',
     'trick-room', 'tailwind', 'leech-seed', 'substitute', 'belly-drum', 'haze', 'rest', 'heal-bell', 'aromatherapy', 'refresh',
-    'psych-up', 'topsy-turvy', 'perish-song', 'taunt', 'attract', 'sleep-talk', 'baton-pass',
+    'psych-up', 'topsy-turvy', 'perish-song', 'taunt', 'attract', 'sleep-talk', 'baton-pass', 'ingrain',
     'nightmare', 'venom-drench', 'purify', 'psycho-shift', ...INTENTIONAL_NO_EFFECT_MOVES
 ]);
 const POST_DAMAGE_SPECIAL_MOVES = new Set([
@@ -1113,7 +1137,8 @@ function safeJsonClone(value, fallback = [], context = 'json-clone') {
 
 const CURRENT_STREAK_STORAGE_KEY = 'battle-factory-current-streak-v1';
 const SESSION_CHECKPOINT_STORAGE_KEY = 'battle-factory-last-session-v1';
-const SESSION_CHECKPOINT_VERSION = 3;
+const SESSION_CHECKPOINT_VERSION = 4;
+const SESSION_CHECKPOINT_COMPATIBLE_VERSIONS = new Set([3, 4]);
 
 const FACTORY_SYMBOL_STORAGE_KEY = 'battle-factory-earned-symbols-v1';
 const FACTORY_SYMBOL_DEFS = Object.freeze({
@@ -1164,7 +1189,7 @@ const State = {
     field: null,
     megaUsed: { player: false, enemy: false },
     catalog: { pokemon: [], pokemonTotal: 0, moveTotal: 0, itemTotal: 0, activeHeldItems: [], excludedMega: 0, excludedPrimal: 0, excludedOriginTrio: 0, megaResources: {}, fallback: false },
-    audit: { unsupportedHeldItems: [], unsupportedAbilities: new Set(), sampledRejectedMoves: new Set(), apiErrors: [], typeIntegrityRepairs: [], typeChartErrors: [], detailedComplete: false, detailedLoading: false },
+    audit: { unsupportedHeldItems: [], unsupportedAbilities: new Set(), sampledRejectedMoves: new Set(), apiErrors: [], typeIntegrityRepairs: [], typeChartErrors: [], coreSelfCheckErrors: [], detailedComplete: false, detailedLoading: false },
     ai: {
         enemySwitchCooldown: 0,
         enemyLastAction: 'move',
@@ -1195,7 +1220,7 @@ let isAnimating = false;
 const AUTO_RECOVER_STORAGE_KEY = 'battle-factory-auto-recover-v1';
 const RUNTIME_DIAGNOSTIC_STORAGE_KEY = 'battle-factory-runtime-diagnostics-v1';
 const BATTLE_ACTION_WATCHDOG_MS = 30000;
-const POKEMON_SPRITE_POLICY = 'generation-v-black-white-style-front-back-embedded-v3';
+const POKEMON_SPRITE_POLICY = 'generation-v-black-white-style-front-back-embedded-v4';
 const SHIELDS_DOWN_IMPLEMENTATION = 'battle-start-switch-entry-turn-end-form-stats-status-immunity-v2';
 const POKEMON_IMAGE_PLACEHOLDER = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="18" fill="#eef2f5"/><circle cx="80" cy="80" r="48" fill="#fff" stroke="#697784" stroke-width="8"/><path d="M32 80h96" stroke="#697784" stroke-width="8"/><circle cx="80" cy="80" r="14" fill="#eef2f5" stroke="#697784" stroke-width="8"/><text x="80" y="145" text-anchor="middle" font-size="14" font-family="sans-serif" fill="#56616b">NO IMAGE</text></svg>')}`;
 const EMBEDDED_POKEMON_SPRITES = Object.freeze({"25":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgBAMAAAAQtmoLAAAAKlBMVEUAAAAAAAApKSlBQUpiMQhzc4OcUgDFIBjelADmWkH2vSD25lL/9qT////Vai+KAAAAAXRSTlMAQObYZgAAAdlJREFUWMPtlsFqwkAQhjclhB6ztRRReqiHXnoSbz0piLX2JcwliD6A0JsgEuoDlNJTQKzsnkJpSDN9A3PpG3U2ST12J4dCKftjNML/MTObndkwZmRkZPTX5Vb0Wxe/DrQq5nRSHehWBK4PQKtFAWpiU9wctTodygI0SsCZQqfTJgK+P3ZmgAClfltsJ9k+Qf8bKQACQZZlgHptqwC+lhh+ZNleAVz5HRjrAEwGUi4Tr/wX61JaSMzm8wrygo9BD5wjENVKYI3hNDnZbRiqlHJfAHrAuVQmeH9eqooJwB3AABN5egyL+rVF3MrldDtJ5/OwDKADbkSuHJAVgJf7kE1FTmg2lCNKheoOCa7froU2OSo5owLSHeG33s+aJQCuTfKzJhQBsNjRlpEAJHZSrY4tKBNkHeNSqk3XZXUKYEFSApH18D1BfgYAmwZ7CKJhsOsRgHUB7CAMgj5lGM9AIfgJ6wtGA2Ko45UK7lPmUjPGmRThlQr3zCMAM/BxhXz1MLhPAKyiBwCkEH2PkJIlCn+apiKklGDlPQBCYoSQdKBMxUG0o6hx8O9oh53VEAHnqndIj42x/kotpjWYrGgB7Djp5c6R8GgR+Gn5G0cVXwl41bcUIyMjo/+qLw92FGczGN4XAAAAAElFTkSuQmCC","133":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgBAMAAAAQtmoLAAAAHlBMVEUAAAAAAABSMSBzSkqkYkq9nHvVnErmxZT/5qz////1fjcxAAAAAXRSTlMAQObYZgAAAdZJREFUWMPt1T1v2zAQBmCZUndREjRbApuiW23S9lrFZ2VO4kJZlRDcjYJg/4E99xf3KPUD6MJTh058F2u4BzyS0jlJYmJiYv7O54X16dtCoBaD+tOyjqDOl4Hu3wGQANtWM8hgJAFRiAlkvSEC3k2/vf75EATNVKc0r/IFIDW8JQI21e3HoqF1lLAyXydpz1sqyO5exxwXaAXx/pTWptvzoiUukBpj+jc9cvALpOH3cG+mtMCxfOdyIniFBusHdw6CbF5Ab/H54OyFcEYzwB2njgLY93kJBDuHCba04lh97wHugAQaBB9r7YFFEOzprkTAPVAP52EgAIO7Lmo45OoE54dwT5nGFZoeDl8Bc3KnEGBGmb3RR+cqLyyEwJfKSKPhFziHwLvrc+XrD26YeoIQePlmBykl3pktp/pjELzcbnj8eGml8kAGwHC9Yayz7lFKFHIT+nysB1e85MdS+oQA+w2qGQTfpdYDNwwX6Hz9MfzFfcB6bEh4oNQmPATe4xFddv7WSnnsCJOGWTeUHQgPOGkyNfayBQ84T4jj/mmLGwi+FH8A8I3pcNPEegawLnAukYGAe1abUQhyR6JZ4dCg7tjPmfWq75f9UycNT2JiYmJi/l9+AMYgjhg81JkoAAAAAElFTkSuQmCC","774":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAMAAADVRocKAAAAIVBMVEX///8ICAgbHyFhJydubm55LxqRS0ibPCCysrK0eGvz8/NOqSC1AAAAAXRSTlMAQObYZgAAAXVJREFUeNrslzmChDAMBKe3TQvN/x+8lvHcZBaZKlJUxY19K4qiKIqiKIrih3a1/46rAzuu9d/vJC8MkHSzywqkmXkUrknQw98xieQVAbfQ+0AMUv10VwSiEB31KTFB90fAnhmidfL8M/CsONAfXKT6n4wMsKf4Of3WcREAj3MZY9rj4/LuJ/4C0KNGECl+i4bcTeEPoPlKLAfacaw2As6/BxwBs8VCazQnwG7yDp4BHAEXFr+fHJcF8tOAR2AF7DSGj6cBKQJLgML0vd8DUkPvjMASz8AozKfIOqFfDgScl+goMAqMAD0Q1wPzJnd0GPEe0HIATmDaXAqnInAkt4xAWIOpj4Gc/ozA0yr/ovs33JbBcH3qbeBSRuB5g78LToC4pRW+z8GJICMAD74bBNreUgJv3rcp/EmBbZO+ApKAvZMTUPAshH2TiNaSAjiMA6oTz7+Ud5N3KIzPwkiEOwk8eAW+7dkl1Ha1KIqiKIqiKP43IAAAW0UV+/+tRSUAAAAASUVORK5CYII=","1007":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAARQ0lEQVR4Ae2dX6hlVR3Ht6FMJhMT/eGKiAx6a4QeEmaIGnxoTEijHpJeMiKSgqag0BAbUgYHTCKlwOwhGuahCSOclyEn0JlAmYdQKEhycoxQkRlI8IKUMxXc1mft/d3nd353rbX3vufce865uphz1/+11/p+f7/f+rfPmap6x80UgUtm+vTm4bff/uXVXD+OHv3VXPQx179J0y+dtAHAy4HUladn33brLdW+W29StPVPPXGScCQn94y28NsxAMArb5xfTUlwLo905VFXn2NHj7ZhpeErXfW2Gs4Ta0AKEMD62SM/XpNFek7a9991V1WFf949+tBDMcm0l9U4X3fLx60kE9aAbTpSTNymSarJW1paih/V9b7yrVbYZ/nyixbvrQEMWnZYABipjOPOpZPpy+66/mOxzvnz54uTrPJD+dUzL/w51kGLgmv7ExMX9M+7+vQbYAEQn08DwJqqqXSAfuSVT1arnz/WlsfcYFpuuunTbVpXACJoq5mYu4ovTH4vAjQaL8VKz/kA9sLyfW02JJAmSW4zmoAI9umKQwLksWKSQChvUf1OArDBfQYHII8/cWKNqfnDv8+11a8/e38RfDSIT99ntg0vcKBIAEBYCWacArprzJL+T73nysqSQD1vRkpmzT9HpsinL2q8SACD8uCtZ6CQkJP+IeD7Z28FbckSgPQ/etXXK8BjEv3Wt7/Xjr9rLpD0txVMwEu/yYpBbLxWPj7PxrvasWXnOZwlgE4D/jRcTvppO7Vy6nqmnYy7ys57fpGAUufRAqsVlCVtEum3z+taEaksy9lFnrR7E+DNkADAZ3mpj023YW8yWDF56df+QPPCyZNP2Sa2ZLgXAUzEfjLWxkq+RceWx/zoPMeWyYVTxKTKbpXVUJYABgh4gMlcoMkYEyPQ0QrKyH3ijVfixkvlW9IePlNV+qiw85F+dsZeK1yxZHTIjjrZwAwTswSoT30m4vdd9/6Kj3fJuoEIwPZAe/CtOfLt2jgag2Me6Dtv2PqzDhcJQAuQapxAPn/LT1upT4GucjbvwMX/VnyeW3lsNF40onE5syNwAVZlrU//mCdEpnxbZt7DvU5DLZgakNIgZOnEdyp87yizdLZO/cJbj1f3Xvnu6tC5xyr2F9FBwp27fLWoIQ24q2b+KN6MUQ6tod6aBuc4oZOAM88/eMmu6p7VM3tuaIdRAr0tVAigDQ9su6wuEUi47c54vBzjFkTADPEIvCdCzSP1MldKG+JrCTsr4oomSAOJJDz7J0WrXSG84wNfjZJPogghTF7JHf7XmzEbElLua1dsrw5cuxxBBxyegwNkmSRA14d0OUgSoEor+ZQ1xJaKbljeIHXd9dF7IjBWG2R+8AGLPEsC8QNP/yCaH0ax86V/xnKEWy0gEkzRc/cdbMzUhQqiBP7K60eiaUmBK8klT6sh7R+UR/PWqZ15MFuDCGAQIsEOKAIU5gCAt+SoTI4A8kUCEzRzBO7QuQvVsctvi2H+iIA2IRPwEm21w1aR1JOfI8mW38jwIAIAPwWwJF7Sb8uUwGdggIv7x3UfjH4JfEluCTSVEch+hUW8S0NiRzbpT+ckXOqHNTuUExGlOuQJdMLcjm373M0Es06gYpJs3VQFkROkO5pLyghwlVcZxWfp9yYgJ/0AsnTiSNL+e+lnoJRH2i8ef3LNuJH+aIbOPR5NEEvXKkzK1hytqZRJmCeQM12Myb1WQaUGkEpJpuYArwlMvC+ePB8/rHIA2h7OEW/Bbx4G+Ht37Bh7NOQBLBohrRgrsICRdRMQVz8BDJkESwI47PnrI3ElA/iYmUt+c00LD1J+y88fjHHMD3E7AQO8B1+VAZ5nbRXX2wTlBlyr+pHVq69ZrrZfsRyKnY5FD/7vQnU6SPv3b/9PtRwO8M5+Y1v1zFf2BKAvtE112f7TKysjUxRqHdtCwAuEdWuAGkAiAV8O4J++bKUCPKT46d99qPrlVVdXl556b7Xv8hp8mRzVkU+6l/ySKVK9RfZ7a0DqSIKBY9P3Iu0B8GhGLqvhqE3KSNoFkrX1CmOmIGnvjnofQFkRqHpb1e9NQAkAJHvf5SPwABYnu044lWbzKWOd1QSZIvI1EduyixweREA94Y4O5Rj4A38/GzZzy6uAKYnmGIGlpkCnnAcbqZdD+oc4rYAWZalZGtugnTANMXgdPWslRDoHaIAMsNrVkm6dBd3OG6++XJ9Zp4iQKbrr4vgXOLaKJgwmAEBFgiWANA+8BZx6Oiwj/OJLL+ONOYhIkUAha4aIv60JAICUGVAa+TgLeJ0y/vdLZ/5WHbx0NHeQmyPBErBVwGe869IAKpbcno/fuPrh60Ybr1xZtIBl696njrdFbv7MF8dIsKannoPC/cOC3Xq1g0sENowA/yxPCOA/+fvftgdxnA1pY4bp0m7XnqyqTUwfbisQMXUCctKPucH9etdHov0HfJxAj5Hmzw0rnx27V7BnS5YQOwfZ+oRlDuedpKkSYMFHwr3UAwxEaEdspZ48nAe/Th39FRm6e0iZJcDX2ZQIiKe54X571NJ8hAbtA0pdtuCXyjHp7qvqjZqX/hz4HGt7d+zZcJcQrz+Vc6Q9/5f5Uo6O0pdeD0voOZs/pkaABtvHT0l+qp6A95u4WJY7g0CCnAcdzeBW7MAP/5K8xVO9WftTI+DZPz6DehdXP5p4GbQnwUu/vcxJgRRJCSTg/IWNwE/Vm7e0qRHAwLSjJZyy/6RzEaO7AOIp1wU+5OF2q62GCL3yovvgIP1jk3nqWbNOmyoBDCYFvFZA5O9rLmIIp1wX+NSBRL4pGX9fIrSHNpx6q97Q7b7/YKrZuU2bOgGYGe9YeuLI23v8+BotEHiqJwn3k7TyowY1RKrsxUDK3od/Up0O7xZBQk76mZBph+N1tTdLf+ILmVTn0QL78WWQXAEH+CxLH9p2Mr5pd/dzz7TFVYZTVXuy2hYIAd0tR41oLnxsvg0zUbNy0tLV5s0qPFUp0FI0twdgkJqIkW6Bj3/Ha6+23yGW5EOAwuyOOajTHiIHGG3p3Mhu2vTCAPXYwNlzKv0EQ67NjUyfugnq01mBT1kAs06Ak6YwZQAfkrpIaC+HmmWqJYE2AV+TNHFceG9oZvuDqZkgST8DSk3EpOM4fPOg1zmjvye+eU9rolieWgcJ/pjb5ivMxMx9st85K39e/A3TgJQZYjUEgDhJ4bYwcVqH2dkXEiT95I1OROv3gkjb2fySlu4PSqZJJKT2B7N+P3Sqc4AOwACIGy+rCRBiHXsGSIAAjieI60c8BD6aIvABT8cIPEcE6o1q27YNM3mzUZtH8OnnVDVAADUArAKqvXq0wJBu31624FsTxepIJFDfgm/bK4U9+Hqu62+piQ3LmyoB+mIFveWtBswNWuCl344GIrSDZkm5zU3KlAVAXASfrzdlvtoUCyX+SFvmCXh1c2ICPOhquMuXduADUATfzQe0AYk6Wm6/W0bGABLmEXiGgBtMgAWcBuz7O8Sti0vH8C1G1txWCzz4to4NC3zSIEFfa+JLHftf+0X8kT9eDOtyMjW5b1uq/iz2A70JEPD+aPjUW+p+ty/gc/NCdwu1OdofCkobxr76mmlAwOtrrPEMKV22vVPYLDI6CcgBr/6z/GOlkdMEaQHlMTWYgxQBfjmq9r2vc/+xb1r6Qi4u4F3ymqj9GZ7N2pwVN2KAj8R7qfc91zEwJiP1wQTwYckICWhCHwd5moBT5e33ylL5pCEYmgNURudHinufn2OQ2fJ5045nNUDg2wfaHSi21xID8H07LU3AH+pEiH9+qZ2ohUHzup4H8Li+4yg9s29eUQPUCMDrMIzB2IkP80OHuzotU6Y2u8BQOa8FmCAPfu6klDY4mMPRjtcE0gFdnz7joM40XVIDrPQDPANGlRlM/TJu/S4oHZH5SXXKgq45Quf1qfJKs8cKnAudCcfXgCT7r3KjDdva1+BVJuVHIprvd3cJTqr+NNOSRxEioAQ+5of81AAEvEC3HYbE3K0VE7EH365YZCJ4BxXwMXs4+06qtMGaR7tIGGIqbb8V1tgU974E1Kfn4kkCdKYDuHqgbdjm24ZVlsGPpNOWqMM5EjwBtiaaABmQAOCQj0YwJ4gAgOZCh0nWnhF5AuxdgJ5RWnZqXJTVhRHnVbowsuEf7b5RTbbWok1IBJImyEq1BV71bb7S6KSVOqXLv3jndxWsqrAaSrn4jmjiO8MCP1UnlQZREGAdks88gNOy1GpXSF6zBxDwFvQqA7xIAAMRU+2+MbaZwjB2JPxJEqDMPr46acG30j8GfNNgzgSRTeeRYPvmhO6A43wQvnG5s1mt2P5J+pUGaIeCNNp+KS/l2z1AyI/A3R1+hDCezBrQqRvTmkZS4TVkBCJyJExEQEnqU8A3fe70kMwToZQlQfcEVObkVPOBGmMxcLghhhWWlW7ySLujx1KU9kSGzB1pFmjiXc6Wr4VgOUlCr2Vo6mE58JH+vuDbZaEN87xIQrD7cgzIbqAgQXsClWFOiEcU4aDOE0QZu/S1BKm+fOrywWRZbVa+9ZmLUh+VERFopKyF8vDXTYBtROGh4Ps7AQswbXqQ0AiV0cAAXROy+oEP2KUlsi1LWKALeM0X5DEuS4QFnPkw9VEZ6uPU3zo2+ptcBY2y06GU9A8Bn9UOk6LOhOzRhC5m9GQ/HyhdvgdfP3+jn0JDsyT5+sEn6vof8LCAq23va9mbWoT4soprxWhXanY+mJgAu8TjoTnzo8M27UyRThGgzooIT0JOeqhnCfDgq13vo1n61V/71p4vp/h6gFdd+RABCeBlCZhoElbj1hfQNk2gk6bNGf4d7spShGAGkFpvguh831WNfX4qrIm2iwjAHyLxqWeRRhs7zVJX5dalAVTGDAlMNYZvwSaeKkM6zpqhOmX0V9og1SUnRwBaoPsBmR7/Q01q2ZOqdIiw2jANqVfbJX/dBKBSJbspyfFEQZAlxZMg4KUNiouIIglBa6yTzdfGi7wcAeRBguaGaUg9bXa5dRNAwx5c/zCR4MmyJEjSVFfAKy4fIkSC0rwPOX6TZ3+izM8tvj5xSCgdS6TqTJI20TK0a5mHhgA+0mSBjva/OUiTFgF8Dvy+A6RdfwQh6adtu9Ts2+ZGl5v6JJzrcCQhTEICHB9S8GPYTci2HZkhm5YKc5J6uj7+H8tmQmc5agmGjJTbLNOjZ09kgmjEmxc1bH2ZIpXHFxHk6b5BWiKgBLyNd5kh2k6ZIhGgNjcbaPqVcptOgDoBcYSlCSKB+UGmTcCrTp95QGVzJMwL8OrnRHOAGunyAVmAqyxA8JHUszkhrBUSeQBuP6rb1/fnS33rbWa5iQmwIK6n4yKCur4t5Vkfye7j2LChVfNOwqZNwn1Aowxgl8pinu6txr/UUSpPe4GEaO662i61s1F5E2tA346lzFDfurYcIA7RAvYq1JlH8BnXujXA2nStaCxQGxkeqgUb2ZdJ2x5MABLFQ3UohjTq/EcT6KSd6qofteCK7cU7aNuG+mxPIW3+LMODCGAgFng6rng9iNHXSTeLjBx4ukC5d+w/A6yFZ56I6E2AB38c+BoGtGGUPvoynpaa07LDkmiBD9j2fSLSFdd8Qb9GfUvfz6q9zfSLKw7bEdl8lnYaCMfAcjadNJs3LeBp1woC8RT4pHsHEdJKyCE+D5rQWwME4uGlavXwS2/G8SktRq7dHucGAT+W59FYZ9yDTzPMP6kfjSVPgqLwoXOjXXZ9pDF7TehNAIPA5YBlZQIxufy69nT+IvUya2ieHFKtl6i4Sz7UvJwlIqIf/oNvJH9n4nZK7WymP5iAXOc2A3g9G/Db5zWaB/j2LoCLFz6eiJqM2Uu+xjI1AtTgRvolLYt54ci5at56TvYjSL+0IZn/TuJwBFgcaIHQp/bQ8n3afKfMAiPwfwfRZxhx2llEAAAAAElFTkSuQmCC","1008":"data:image/png;base64,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","10136":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAMAAADVRocKAAAAHlBMVEX///8QEBCjMES6HVTAHVbFHVfQK1TxnLPyYZHz8/P2sWMkAAAAAXRSTlMAQObYZgAAASNJREFUeNrtlVWCxDAMxcaFyLn/hdfp2+F+OovWYEkq91K8URRFURRFURTLbH+32QFsrr/36QHsFwcWws+yLNMCDngwqbEsLtSYqlfiSo6/OfiNzd3pwlL87oDvweFXINXv4H71K0CGXyzrunpw+Al8AGl+l9/3644BFSzDHrj8QvtmFJpl6IeL4K7HVcgILNofXcKB3CiQULAwfSaQX7HxlRKIAvIdBbpQYM8IXJDuJLDPCzjDnxjgOQAaalkBXP5AhcTr4FoAVZwjweHPC2iF0Q+BD+TPKagBehSIRkJAwNCL7RpokFYwWmtXvwKtjWpegKaEaIPwpxWsw7I0IcxyAx0wW272EJvlFYZKTnEdbYmBc9GIZZDlKYqiKIqiKIqi+ADXixPSAja0xAAAAABJRU5ErkJggg=="});
@@ -1293,17 +1318,33 @@ function isGamePokemonSpriteUrl(value) {
     if (/^data:image\/png;base64,/i.test(value)) return true;
     if (!/^https?:\/\//i.test(value)) return false;
     const lower = value.toLowerCase().split(/[?#]/)[0];
-    const pathPattern = '/sprites/pokemon/';
-    if (!lower.includes(pathPattern)) return false;
+
+    // Pokémon Showdownの第5世代風スプライトは /sprites/pokemon/ 配下ではないため、
+    // PokeAPI用のパス検査より先に許可する。
+    if (lower.startsWith('https://play.pokemonshowdown.com/sprites/gen5/') ||
+        lower.startsWith('https://play.pokemonshowdown.com/sprites/gen5-back/')) return true;
+
+    if (!lower.includes('/sprites/pokemon/')) return false;
     // PokeAPI公式リポジトリのraw、jsDelivrミラー、公式GitHub Pagesを許可する。
     return lower.startsWith('https://raw.githubusercontent.com/pokeapi/sprites/') ||
         lower.startsWith('https://cdn.jsdelivr.net/gh/pokeapi/sprites@') ||
-        lower.startsWith('https://pokeapi.github.io/sprites/') ||
-        lower.startsWith('https://play.pokemonshowdown.com/sprites/gen5/') ||
-        lower.startsWith('https://play.pokemonshowdown.com/sprites/gen5-back/');
+        lower.startsWith('https://pokeapi.github.io/sprites/');
 }
 function uniqueSpriteUrls(values) {
     return [...new Set((values || []).filter(isGamePokemonSpriteUrl))];
+}
+const CRITICAL_SPRITE_DEX_IDS = Object.freeze({
+    koraidon: 1007,
+    miraidon: 1008
+});
+function resolveSpriteDexId(pokemon) {
+    const slug = String(pokemon?.apiName || pokemon?.speciesKey || '').toLowerCase();
+    const criticalId = CRITICAL_SPRITE_DEX_IDS[slug];
+    if (criticalId) return criticalId;
+    const formId = Number(pokemon?.spriteFormId);
+    if (Number.isFinite(formId) && formId > 0) return formId;
+    const id = Number(pokemon?.id);
+    return Number.isFinite(id) && id > 0 ? id : null;
 }
 function showdownGen5SpriteSlugs(apiSlug) {
     const slug = String(apiSlug || '').trim().toLowerCase();
@@ -1380,13 +1421,20 @@ function spriteCandidatesFromApi(apiData) {
 function ensurePokemonSpriteCandidates(pk, apiData = null) {
     if (!pk) return { front: [POKEMON_IMAGE_PLACEHOLDER], back: [] };
     const apiCandidates = apiData ? spriteCandidatesFromApi(apiData) : { front: [], back: [] };
-    const repo = repositorySpriteUrls(pk.spriteFormId || pk.id);
+    // メガシンカなど戦闘中フォルムでは、旧フォルムのID画像へ戻らないよう候補を固定する。
+    const formOnly = Boolean(pk.spriteCandidatesFormOnly);
+    const resolvedSpriteId = resolveSpriteDexId(pk);
+    const repo = formOnly && !pk.spriteFormId
+        ? { front: [], back: [] }
+        : repositorySpriteUrls(resolvedSpriteId);
     const showdown = showdownGen5SpriteUrls(pk.apiName || pk.speciesKey);
+    const storedFront = Array.isArray(pk.spriteFrontCandidates) ? pk.spriteFrontCandidates : [];
+    const storedBack = Array.isArray(pk.spriteBackCandidates) ? pk.spriteBackCandidates : [];
     pk.spriteFrontCandidates = uniqueSpriteUrls([
-        ...showdown.front, ...apiCandidates.front, pk.spriteF, ...(pk.spriteFrontCandidates || []), ...repo.front
+        ...showdown.front, ...apiCandidates.front, pk.spriteF, ...storedFront, ...repo.front
     ]);
     pk.spriteBackCandidates = uniqueSpriteUrls([
-        ...showdown.back, ...apiCandidates.back, pk.spriteB, ...(pk.spriteBackCandidates || []), ...repo.back
+        ...showdown.back, ...apiCandidates.back, pk.spriteB, ...storedBack, ...repo.back
     ]);
     pk.spriteF = pk.spriteFrontCandidates[0] || POKEMON_IMAGE_PLACEHOLDER;
     pk.spriteB = pk.spriteBackCandidates[0] || '';
@@ -1398,14 +1446,18 @@ function assignPokemonImage(image, pokemon, { preferBack = false } = {}) {
     const back = preferBack ? candidates.back : [];
     const front = candidates.front;
     const urls = [...back, ...front, POKEMON_IMAGE_PLACEHOLDER];
-    const key = `${pokemon?.id || pokemon?.apiName || 'unknown'}|${pokemon?.apiName || ''}|${pokemon?.spriteF || ''}|${pokemon?.spriteB || ''}|${preferBack ? 'back' : 'front'}`;
-    if (image.dataset.spriteKey === key && image.getAttribute('src')) return;
+    const key = `${resolveSpriteDexId(pokemon) || 'unknown'}|${pokemon?.apiName || ''}|${pokemon?.spriteFormId || ''}|${pokemon?.isMega ? 'mega' : 'base'}|${preferBack ? 'back' : 'front'}`;
+    // 同じ個体でも前回の読み込みが失敗している場合は、候補の先頭から再試行する。
+    if (image.dataset.spriteKey === key && image.complete && image.naturalWidth > 0) return;
     image.dataset.spriteKey = key;
+    image.onerror = null;
     let index = 0;
     const load = () => {
         const url = urls[index] || POKEMON_IMAGE_PLACEHOLDER;
         image.classList.toggle('pokemon-image-placeholder', url === POKEMON_IMAGE_PLACEHOLDER);
-        image.style.transform = preferBack && index >= back.length && url !== POKEMON_IMAGE_PLACEHOLDER ? 'scaleX(-1)' : 'none';
+        const mirrorFrontAsBack = preferBack && index >= back.length && url !== POKEMON_IMAGE_PLACEHOLDER;
+        image.style.setProperty('--sprite-facing', mirrorFrontAsBack ? '-1' : '1');
+        image.style.transform = mirrorFrontAsBack ? 'scaleX(-1)' : 'none';
         image.src = url;
     };
     image.onerror = () => {
@@ -1419,6 +1471,25 @@ function assignPokemonImage(image, pokemon, { preferBack = false } = {}) {
         load();
     };
     load();
+}
+
+function waitForDisplayedPokemonImage(image, timeoutMs = 2200) {
+    return new Promise(resolve => {
+        if (!image) { resolve(false); return; }
+        let settled = false;
+        let timer = null;
+        const finish = loaded => {
+            if (settled) return;
+            settled = true;
+            image.removeEventListener('load', onLoad);
+            if (timer) clearTimeout(timer);
+            resolve(Boolean(loaded));
+        };
+        const onLoad = () => finish(image.naturalWidth > 0 && image.naturalHeight > 0);
+        image.addEventListener('load', onLoad);
+        timer = setTimeout(() => finish(image.complete && image.naturalWidth > 0), timeoutMs);
+        if (image.complete && image.naturalWidth > 0) queueMicrotask(() => finish(true));
+    });
 }
 
 
@@ -1678,12 +1749,18 @@ function buildMegaDefinition(pokemon, raw) {
     const displayVariant = ({ X: 'Ｘ', Y: 'Ｙ', Z: 'Ｚ' })[variant] || variant;
     const stone = raw.noStone ? null : `mega-stone:${raw.apiSlug}`;
     const stoneJa = raw.stoneJa || (stone ? `${baseLabel}ナイト${displayVariant}` : '');
+    const apiUrl = raw.apiUrl || State.catalog.megaResources?.[raw.apiSlug] || null;
+    const dataStatus = raw.dataStatus || (apiUrl ? MEGA_DATA_STATUS.COMMUNITY : (raw.source === 'za' ? MEGA_DATA_STATUS.OFFICIAL_PARTIAL : MEGA_DATA_STATUS.COMMUNITY));
+    const standardEligible = raw.standardEligible ?? Boolean(apiUrl || raw.source === 'pokeapi');
     if (stone) ITEM_DEFS[stone] = ITEM_DEFS[stone] || { ja: stoneJa };
     return {
-        ...raw, variant, stone, stoneJa,
-        displayName: raw.displayName || `メガ${baseLabel}${displayVariant}`,
-        apiUrl: raw.apiUrl || State.catalog.megaResources?.[raw.apiSlug] || null
+        ...raw, variant, stone, stoneJa, apiUrl, dataStatus, standardEligible,
+        displayName: raw.displayName || `メガ${baseLabel}${displayVariant}`
     };
+}
+function megaDataStatusLabel(status) { return MEGA_DATA_STATUS_LABELS[status] || '出典未分類'; }
+function megaProfileAllowedInStandard(profile) {
+    return Boolean(profile && (profile.standardEligible || RULESET.allowEstimatedZaMegas));
 }
 function getMegaOptions(pokemon) {
     const options = [];
@@ -1710,7 +1787,7 @@ function getMegaOptions(pokemon) {
     }
     // Z-Aの新規メガは原種を基準にする。リージョンフォームへ同名種のメガ候補を誤付与しない。
     if (!regionalFormInfo(pokemon.apiName)) {
-        for (const raw of ZA_MEGA_DEFS[pokemon.speciesKey] || []) candidates.push({ ...raw, source: 'za' });
+        for (const raw of ZA_MEGA_DEFS[pokemon.speciesKey] || []) candidates.push({ ...raw, source: 'za', apiUrl: raw.apiUrl || State.catalog.megaResources?.[raw.apiSlug] || null });
     }
     for (const raw of candidates) {
         if (seen.has(raw.apiSlug)) continue;
@@ -1801,6 +1878,7 @@ function saveSessionCheckpoint(phase = 'battle') {
             phase,
             savedAt: Date.now(),
             streak: State.streak,
+            rulesetId: RULESET.id,
             playerTeam,
             enemyTeam
         };
@@ -1818,7 +1896,7 @@ function loadSessionCheckpoint() {
         safeStorageGet(SESSION_CHECKPOINT_STORAGE_KEY, 'null') || 'null',
         null, 'checkpoint-load', SESSION_CHECKPOINT_STORAGE_KEY
     );
-    if (!data || data.version !== SESSION_CHECKPOINT_VERSION || !['battle', 'swap'].includes(data.phase)) return null;
+    if (!data || !SESSION_CHECKPOINT_COMPATIBLE_VERSIONS.has(data.version) || !['battle', 'swap'].includes(data.phase)) return null;
     if (!Array.isArray(data.playerTeam) || !data.playerTeam.length || !Array.isArray(data.enemyTeam) || !data.enemyTeam.length) return null;
     return data;
 }
@@ -1849,7 +1927,7 @@ function normalizeRestoredPokemon(pk) {
     pk.gulpMissileProfile ||= null; pk.gulpMissileForm ||= null;
     pk.volatile ||= {};
     Object.assign(pk.volatile, {
-        flinch: false, infatuatedBy: null, trappedBy: null, pendingItemSwitch: null,
+        flinch: false, infatuatedBy: null, trappedBy: null, pendingItemSwitch: null, ingrain: Boolean(pk.volatile.ingrain),
         rampageMove: pk.volatile.rampageMove || null,
         rampageTurns: Number(pk.volatile.rampageTurns || 0),
         rampageTotal: Number(pk.volatile.rampageTotal || 0),
@@ -1865,6 +1943,18 @@ function normalizeRestoredPokemon(pk) {
         pk.megaProfile.definition.displayName = 'メガジガルデ';
         pk.megaProfile.apiName = 'zygarde-mega';
     }
+    // 旧チェックポイントでメガ形態の候補配列が未保存でも、原種画像へ巻き戻らないよう再構築する。
+    if (pk.isMega) {
+        const restoredMegaSprites = showdownGen5SpriteUrls(pk.apiName || pk.megaProfile?.apiName);
+        pk.spriteCandidatesFormOnly = true;
+        pk.spriteFormId = pk.megaProfile?.spriteFormId || pk.spriteFormId || null;
+        pk.spriteFrontCandidates = uniqueSpriteUrls([
+            ...restoredMegaSprites.front, ...(pk.megaProfile?.spriteFrontCandidates || []), pk.megaProfile?.spriteF, pk.spriteF
+        ]);
+        pk.spriteBackCandidates = uniqueSpriteUrls([
+            ...restoredMegaSprites.back, ...(pk.megaProfile?.spriteBackCandidates || []), pk.megaProfile?.spriteB, pk.spriteB
+        ]);
+    }
     ensurePokemonTypeIntegrity(pk, 'checkpoint-restore');
     ensurePokemonSpriteCandidates(pk);
     for (const move of pk.moves || []) {
@@ -1874,6 +1964,8 @@ function normalizeRestoredPokemon(pk) {
         // 旧バージョンのチェックポイントに使用不可通知が保存されていても再表示しない。
         // APIから再取得できない復元直後は、moveDescription() が技データから説明を生成する。
         if (isUnavailableMoveFlavorText(move.description || '')) move.description = '';
+        move.descriptionSource = move.description ? (move.descriptionSource || 'game-text') : 'generated';
+        move.descriptionVersionGroup ||= null;
     }
     return pk;
 }
@@ -2122,7 +2214,7 @@ function renderAudit() {
     const supportedHeld = State.catalog.activeHeldItems.filter(item => ITEM_DEFS[item.name]).length;
     const pokemonText = State.catalog.fallback
         ? 'ポケモン一覧の取得に失敗したため、旧上限1010件へフォールバック中'
-        : `ポケモン ${State.catalog.pokemonTotal}件中、メガ進化${State.catalog.excludedMega}件・ゲンシ形態${State.catalog.excludedPrimal || 0}件・時空三神オリジン${State.catalog.excludedOriginTrio || 0}件を除く${State.catalog.pokemon.length}件を抽選対象（戦闘中フォルム特性13系統を監査済み）`;
+        : `ポケモン ${State.catalog.pokemonTotal}件中、メガ進化${State.catalog.excludedMega}件・ゲンシ形態${State.catalog.excludedPrimal || 0}件・時空三神オリジン${State.catalog.excludedOriginTrio || 0}件を除く${State.catalog.pokemon.length}件を抽選対象（戦闘中フォルム特性13系統をイベント別に監査／メガシンカは通常フォームチェンジと同じ短い点滅で新姿へ切替）`;
     const moveText = State.catalog.moveTotal
         ? `技 ${State.catalog.moveTotal}件（件数のみ高速確認）。選出された技は個別データで動作可否を判定`
         : '技の総件数は未取得。選出された技の個別安全判定は有効';
@@ -2137,17 +2229,37 @@ function renderAudit() {
         <span>${escapeHTML(pokemonText)}</span>
         <span>${escapeHTML(moveText)}</span>
         <span>${escapeHTML(itemText)}</span>
-        <span>メガシンカ: ポケモンデータ収録形態は実データを遅延取得／『Pokémon LEGENDS Z-A』『M次元ラッシュ』の新規形態は名称・タイプ・戦闘中の姿を確認し、未収録データのみターン制互換設定で補完</span>
+        <span>採用ルール ${escapeHTML(RULESET.id)}: メガ後の素早さを行動順計算前から使用／取得済み能力値のないZ-Aメガは通常抽選から除外</span>
+        <span>メガデータ区分: 公式部分確認・取得済み対戦データ・ターン制互換・推定値を内部で分離し、互換/推定値を公式値として扱いません</span>
         ${State.audit.unsupportedHeldItems.length ? `<span>未実装の持ち物: ${State.audit.unsupportedHeldItems.length}件（英語の内部名は画面に表示しません）</span>` : ''}
         <span>タイプ監査 ${TYPE_SYSTEM_REVIEW_VERSION}: 18タイプ×18タイプを検査／ブリジュラス（はがね・ドラゴン）へのこおり技は1倍／自動修復 ${State.audit.typeIntegrityRepairs.length}件／相性表エラー ${State.audit.typeChartErrors.length}件</span>
         <span>画像仕様 ${POKEMON_SPRITE_POLICY}: 第5世代B/W基準の96pxスプライトへ統一／650番以降はSmogonコミュニティ制作のB/W風画像を優先／ピカチュウ・イーブイ・コライドン・ミライドンは前面・背面をHTML内蔵</span>
         <span>安定性監査: 非同期操作は必ずfinallyでロック解除／30秒監視で直前チェックポイントへ自動復旧／個体生成失敗は該当個体だけ除外／画像は同じB/W系候補へ自動フォールバック</span>
-        <span>技説明: 最新側の「使用不可・忘れることを推奨」は表示せず、最も新しい有効な日本語説明へ自動で遡る／説明がない場合は技データから生成／めざめるパワーは個体値による動的タイプに対応</span>
+        <span>技説明: 使用不可通知を除外し、最も新しい有効な日本語の作品内説明へ遡る／説明がない場合は技データから生成／画面上で出典区分を表示</span>
+        <span>フォーム発動時機: 天候連動は天候変化時、ダルマモード・ぎょぐん・スワームチェンジは規定イベント時のみ判定。設置技直後にターン終了特性を誤発動しません</span>
+        <span>強制交代: きゅうばん・ばんけん・ねをはる・交代先なしを確認。ドラゴンテール/ともえなげは本体へダメージが通った場合のみ処理</span>
+        <span>スプライト出典: PokeAPI spritesおよびPokémon Showdownの第5世代風スプライト候補を使用。重要4匹はオフライン用画像をHTML内蔵</span>
+        <span>内部回帰チェック: ${State.audit.coreSelfCheckErrors.length ? `エラー ${State.audit.coreSelfCheckErrors.length}件` : '合格'}</span>
         <span>きのみ監査 ${BERRY_REVIEW_VERSION}: 登録47種を状態回復・HP回復・能力上昇・半減・被弾反応・PP回復・優先行動に分類して検査／ねむる直後のカゴのみ・ラムのみ即時発動に対応</span>
         <span>特性レビュー ${ABILITY_REVIEW_VERSION}: バトルスイッチ／てんきや／フラワーギフト／ダルマモード／ぎょぐん／リミットシールド／スワームチェンジ／ばけのかわ／アイスフェイス／うのミサイル／はらぺこスイッチ／マイティチェンジ／テラスチェンジ／テラスシェルを形態・能力値・タイプ・画像・発動時機まで監査／今回抽選で表示のみ ${State.audit.unsupportedAbilities.size}件</span>
         ${State.audit.unsupportedAbilities.size ? `<span>未実装特性も正式名称を表示しますが、効果は安全に無処理です。対応済みと誤表示しないよう監査件数へ分離しています。</span>` : ''}
         <div class="api-audit-actions">${detailAction}</div>
     `;
+}
+
+
+function runCoreRegressionSelfCheck() {
+    const errors = [];
+    const expect = (condition, message) => { if (!condition) errors.push(message); };
+    expect(canonicalMovePriorityValue('roar', 0) === -6, 'ほえるの優先度が-6ではない');
+    expect(canonicalMovePriorityValue('dragon-tail', 0) === -6, 'ドラゴンテールの優先度が-6ではない');
+    expect(isUnavailableMoveFlavorText('このわざは つかえません。わざを わすれることを おすすめします。'), '使用不可技説明を検出できない');
+    expect(!RULESET.allowEstimatedZaMegas, '通常ルールで推定Z-Aメガが有効');
+    expect(RULESET.megaSpeedMode === 'gen7-plus', 'メガ素早さルールが未確定');
+    expect(HP_FORM_EVENT_POLICY['power-construct'].has(FORM_EVENT.END_OF_TURN), 'スワームチェンジのターン終了判定がない');
+    expect(!HP_FORM_EVENT_POLICY['power-construct'].has(FORM_EVENT.AFTER_DAMAGE), 'スワームチェンジがダメージ直後に誤発動する');
+    expect(SPECIAL_STATUS_MOVES.has('ingrain'), 'ねをはるが専用処理へ登録されていない');
+    return errors;
 }
 
 function createBattleStats(baseStats) {
@@ -2361,10 +2473,8 @@ function tryIceFaceBlock(def, atk, move, isPlayer) {
 }
 
 function tryIceFaceConfusionBlock(pk) {
-    if (!pk?.iceFaceProfile || pk.iceFaceForm !== 'ice' || !hasAbility(pk, 'ice-face')) return false;
-    applyIceFaceForm(pk, 'noice', isPlayerPokemon(pk), true);
-    logMsg(`🧊 ${escapeHTML(pk.name)} の アイスフェイスが混乱による自傷を防いだ！`);
-    return true;
+    // アイスフェイスが防ぐのは相手から受ける物理技。混乱による自傷は対象外。
+    return false;
 }
 
 function restoreIceFaceAtTurnEnd(pk) {
@@ -2875,12 +2985,21 @@ function refreshWeatherDependentForms(announce = true) {
         syncFlowerGiftForm(pk, announce);
     }
 }
-function syncHpDependentAbilityForms(pk, announce = true) {
-    if (!pk || pk.stats.hp <= 0) return false;
+const HP_FORM_EVENT_POLICY = Object.freeze({
+    'zen-mode': new Set([FORM_EVENT.BATTLE_START, FORM_EVENT.END_OF_TURN]),
+    'schooling': new Set([FORM_EVENT.BATTLE_START, FORM_EVENT.END_OF_TURN]),
+    'power-construct': new Set([FORM_EVENT.END_OF_TURN])
+});
+function hpFormEventAllowed(pk, event) {
+    const policy = HP_FORM_EVENT_POLICY[pk?.ability];
+    return Boolean(policy?.has(event));
+}
+function syncHpDependentAbilityForms(pk, announce = true, event = FORM_EVENT.END_OF_TURN) {
+    if (!pk || pk.stats.hp <= 0 || !hpFormEventAllowed(pk, event)) return false;
     let changed = false;
-    changed = syncZenModeForm(pk, announce) || changed;
-    changed = syncSchoolingForm(pk, announce) || changed;
-    changed = syncPowerConstructForm(pk, announce) || changed;
+    if (hasAbility(pk, 'zen-mode')) changed = syncZenModeForm(pk, announce) || changed;
+    if (hasAbility(pk, 'schooling')) changed = syncSchoolingForm(pk, announce) || changed;
+    if (hasAbility(pk, 'power-construct')) changed = syncPowerConstructForm(pk, announce) || changed;
     return changed;
 }
 function resetTemporaryAbilityFormsOnSwitch(pk) {
@@ -2962,19 +3081,32 @@ async function prepareMegaProfile(pokemon) {
     apiData?.stats?.forEach(entry => { apiStats[entry.stat.name] = entry.base_stat; });
     const megaAbilityEntry = apiData?.abilities?.find(entry => !entry.is_hidden)?.ability || apiData?.abilities?.[0]?.ability || null;
     await cacheAbilityLocalization(megaAbilityEntry);
-    const fallbackImage = pokemon.spriteF || POKEMON_IMAGE_PLACEHOLDER;
     const showdownMegaSprites = showdownGen5SpriteUrls(definition.apiSlug);
+    const apiSpriteCandidates = spriteCandidatesFromApi(apiData);
+    const megaFrontCandidates = uniqueSpriteUrls([...showdownMegaSprites.front, ...apiSpriteCandidates.front]);
+    const megaBackCandidates = uniqueSpriteUrls([...showdownMegaSprites.back, ...apiSpriteCandidates.back]);
+    const hasApiStats = Object.keys(apiStats).length > 0;
+    const usesDeclaredCompatibilityStats = !hasApiStats && Boolean(definition.stats);
+    const dataStatus = hasApiStats
+        ? MEGA_DATA_STATUS.COMMUNITY
+        : (usesDeclaredCompatibilityStats ? MEGA_DATA_STATUS.COMPATIBILITY : MEGA_DATA_STATUS.ESTIMATED);
+    const standardEligible = hasApiStats || (definition.source !== 'za' && Boolean(definition.apiUrl));
     pokemon.megaProfile = {
-        definition,
+        definition: { ...definition, dataStatus, standardEligible },
         name: definition.displayName,
         apiName: definition.apiSlug,
         types: resolvePokemonTypes(apiData, definition.types || pokemon.types),
-        baseStats: Object.keys(apiStats).length ? apiStats : (definition.stats ? { ...definition.stats } : fallbackMegaBaseStats(pokemon, definition)),
+        baseStats: hasApiStats ? apiStats : (definition.stats ? { ...definition.stats } : fallbackMegaBaseStats(pokemon, definition)),
         ability: megaAbilityEntry?.name || definition.ability || pokemon.ability,
-        spriteF: uniqueSpriteUrls([...showdownMegaSprites.front, ...spriteCandidatesFromApi(apiData).front])[0] || fallbackImage,
-        spriteB: uniqueSpriteUrls([...showdownMegaSprites.back, ...spriteCandidatesFromApi(apiData).back])[0] || '',
+        spriteFormId: apiData?.id || null,
+        spriteFrontCandidates: megaFrontCandidates,
+        spriteBackCandidates: megaBackCandidates,
+        spriteF: megaFrontCandidates[0] || POKEMON_IMAGE_PLACEHOLDER,
+        spriteB: megaBackCandidates[0] || '',
         weight: apiData?.weight || definition.weight || pokemon.weight,
-        source: apiData ? 'pokeapi' : 'za-fallback'
+        source: apiData ? 'pokeapi' : 'compatibility-fallback',
+        dataStatus,
+        standardEligible
     };
 }
 function megaRequirementMet(pk) {
@@ -2985,20 +3117,32 @@ function megaRequirementMet(pk) {
     return Boolean(definition.stone && pk.item === definition.stone);
 }
 function canMegaEvolve(pk, isPlayer) {
-    return Boolean(pk && pk.stats.hp > 0 && !pk.isMega && pk.megaProfile && megaRequirementMet(pk) && !State.megaUsed[megaSideKey(isPlayer)]);
+    return Boolean(pk && pk.stats.hp > 0 && !pk.isMega && pk.megaProfile && megaProfileAllowedInStandard(pk.megaProfile) && megaRequirementMet(pk) && !State.megaUsed[megaSideKey(isPlayer)]);
 }
 async function applyMegaEvolution(pk, isPlayer) {
     if (!canMegaEvolve(pk, isPlayer)) return false;
     const profile = pk.megaProfile;
+
     pk.baseSnapshot = pk.baseSnapshot || {
         name: pk.name, apiName: pk.apiName, types: [...pk.types], ability: pk.ability, spriteF: pk.spriteF, spriteB: pk.spriteB,
+        spriteFormId: pk.spriteFormId || null,
+        spriteCandidatesFormOnly: Boolean(pk.spriteCandidatesFormOnly),
+        spriteFrontCandidates: [...(pk.spriteFrontCandidates || [])],
+        spriteBackCandidates: [...(pk.spriteBackCandidates || [])],
         baseStats: { ...pk.baseStats }, stats: { ...pk.stats }, weight: pk.weight
     };
+
+    logMsg(`💎 <b>${escapeHTML(pk.baseSnapshot.name)}</b> のメガストーンとキーストーンが反応した！`);
+
     pk.name = profile.name;
     pk.apiName = profile.apiName;
     pk.types = normalizeTypeList(profile.types, pk.battleBaseTypes, profile.apiName);
     pk.ability = profile.ability;
-    pk.spriteF = profile.spriteF || pk.spriteF;
+    pk.spriteFormId = profile.spriteFormId || null;
+    pk.spriteCandidatesFormOnly = true;
+    pk.spriteFrontCandidates = [...(profile.spriteFrontCandidates || [])];
+    pk.spriteBackCandidates = [...(profile.spriteBackCandidates || [])];
+    pk.spriteF = profile.spriteF || POKEMON_IMAGE_PLACEHOLDER;
     pk.spriteB = profile.spriteB || '';
     ensurePokemonSpriteCandidates(pk);
     pk.baseStats = { ...profile.baseStats };
@@ -3011,18 +3155,23 @@ async function applyMegaEvolution(pk, isPlayer) {
     pk.isMega = true;
     pk.megaPending = false;
     State.megaUsed[megaSideKey(isPlayer)] = true;
+
+    // 他の戦闘中フォームチェンジと同じ軽量な表示更新を使う。
     const image = document.getElementById(isPlayer ? 'player-img' : 'enemy-img');
-    image?.classList.add('mega-aura');
+    if (image) image.dataset.spriteKey = '';
+    image?.classList.remove('stance-flash');
+    void image?.offsetWidth;
+    image?.classList.add('stance-flash');
+    updateBattleUI();
+
     logMsg(`✨ <b>${escapeHTML(pk.baseSnapshot.name)}</b> は <b>${escapeHTML(pk.name)}</b> にメガシンカした！`);
     logMsg(`🔄 タイプ: ${escapeHTML(pk.types.map(type => TYPE_NAMES[type] || 'タイプ名未取得').join(' / '))} ／ 特性: ${escapeHTML(abilityName(pk.ability))}`);
-    if (profile.source === 'za-fallback') {
-        const note = profile.definition.compatibilityNote || 'この新規メガはPokeAPI未収録の場合、名称・タイプ・戦闘中の姿をZ-A情報へ合わせ、能力値と特性は本作のターン制バトル向け互換設定を使用します。';
+    logMsg(`📚 データ区分: ${escapeHTML(megaDataStatusLabel(profile.dataStatus))}`);
+    if ([MEGA_DATA_STATUS.COMPATIBILITY, MEGA_DATA_STATUS.ESTIMATED].includes(profile.dataStatus)) {
+        const note = profile.definition.compatibilityNote || 'この形態は公式に確認できる名称・外見へ合わせつつ、未公開のターン制能力値を本作の互換設定で補っています。';
         logMsg(`ℹ️ ${escapeHTML(note)}`);
     }
     activateEntryAbility(pk, isPlayer, true);
-    updateBattleUI();
-    await sleep(650);
-    image?.classList.remove('mega-aura');
     return true;
 }
 function revertMegaEvolution(pk) {
@@ -3030,7 +3179,12 @@ function revertMegaEvolution(pk) {
     const snap = pk.baseSnapshot;
     const hp = pk.stats.hp;
     pk.name = snap.name; pk.apiName = snap.apiName; pk.types = normalizeTypeList(snap.types, pk.originalTypes, snap.apiName); pk.ability = snap.ability;
+    pk.spriteFormId = snap.spriteFormId || null;
+    pk.spriteCandidatesFormOnly = Boolean(snap.spriteCandidatesFormOnly);
+    pk.spriteFrontCandidates = [...(snap.spriteFrontCandidates || [])];
+    pk.spriteBackCandidates = [...(snap.spriteBackCandidates || [])];
     pk.spriteF = snap.spriteF; pk.spriteB = snap.spriteB; pk.baseStats = { ...snap.baseStats }; pk.weight = snap.weight;
+    ensurePokemonSpriteCandidates(pk);
     pk.stats = { ...snap.stats, hp: Math.min(hp, snap.stats.maxHp), maxHp: snap.stats.maxHp };
     pk.isMega = false; pk.megaPending = false; pk.baseSnapshot = null;
 }
@@ -3082,7 +3236,7 @@ function isUnavailableMoveFlavorText(value) {
     const normalized = normalizeFlavorTextForMatch(value);
     return Boolean(normalized && UNAVAILABLE_MOVE_TEXT_MARKERS.some(marker => normalized.includes(marker)));
 }
-function latestJapaneseMoveText(apiMove, preferredVersionGroup = null) {
+function latestJapaneseMoveTextRecord(apiMove, preferredVersionGroup = null) {
     const entries = (apiMove.flavor_text_entries || [])
         .filter(entry => ['ja-hrkt', 'ja-Hrkt', 'ja'].includes(entry.language?.name))
         .map(entry => ({
@@ -3093,16 +3247,24 @@ function latestJapaneseMoveText(apiMove, preferredVersionGroup = null) {
         }))
         .filter(entry => entry.cleaned && !isUnavailableMoveFlavorText(entry.cleaned))
         .sort((a, b) => a.order - b.order || a.languageRank - b.languageRank);
-    if (!entries.length) return '';
+    if (!entries.length) return { text: '', versionGroup: null, language: null };
 
-    // 最新作品側に「使用不可・忘れることを推奨」という管理用テキストしかなくても、
-    // それを説明として表示せず、PokeAPIに残っている最も新しい有効な日本語説明へ遡る。
-    // 同じ作品に漢字表記(ja)とひらがな表記(ja-hrkt)がある場合は漢字表記を優先する。
+    // 最新作品側に管理用の使用不可通知しかなくても、有効な作品内説明まで遡る。
     const ordered = entries.filter(entry => entry.order > 0);
-    if (ordered.length) return ordered.at(-1)?.cleaned || '';
     const preferredOrder = preferredVersionGroup?.order || versionGroupOrder(preferredVersionGroup);
-    const exact = preferredOrder > 0 ? entries.filter(entry => entry.order === preferredOrder).at(-1) : null;
-    return exact?.cleaned || entries.at(-1)?.cleaned || '';
+    const selected = ordered.at(-1) || (preferredOrder > 0 ? entries.filter(entry => entry.order === preferredOrder).at(-1) : null) || entries.at(-1);
+    return {
+        text: selected?.cleaned || '',
+        versionGroup: selected?.version_group?.name || null,
+        language: selected?.language?.name || null
+    };
+}
+function latestJapaneseMoveText(apiMove, preferredVersionGroup = null) {
+    return latestJapaneseMoveTextRecord(apiMove, preferredVersionGroup).text;
+}
+function moveDescriptionSourceLabel(move) {
+    if (move?.descriptionSource === 'game-text') return `作品内説明${move.descriptionVersionGroup ? `・${move.descriptionVersionGroup}` : ''}`;
+    return '本作生成説明';
 }
 function synthesizeMoveDescription(move) {
     if (CONDITIONAL_MOVE_DESCRIPTIONS[move.origName]) return CONDITIONAL_MOVE_DESCRIPTIONS[move.origName];
@@ -3187,7 +3349,8 @@ function normalizeMove(apiMove, sourceVersionGroup = null) {
     const statChance = apiMove.meta?.stat_chance > 0 ? apiMove.meta.stat_chance : (apiMove.stat_changes?.length ? (effectChance ?? 100) : 0);
     const target = apiMove.target?.name || 'selected-pokemon';
     const shortEffect = apiMove.effect_entries?.find(entry => entry.language.name === 'en')?.short_effect || '';
-    const description = latestJapaneseMoveText(apiMove, sourceVersionGroup);
+    const descriptionRecord = latestJapaneseMoveTextRecord(apiMove, sourceVersionGroup);
+    const description = descriptionRecord.text;
     const requiresRecharge = RECHARGE_MOVES.has(apiMove.name) || /(?:must|has to) recharge|cannot move (?:on )?the next turn|can't move (?:on )?the next turn/i.test(shortEffect);
     return {
         name: getJaName(apiMove.names, '技名未取得'), origName: apiMove.name, type: apiMove.type?.name || 'normal',
@@ -3201,6 +3364,8 @@ function normalizeMove(apiMove, sourceVersionGroup = null) {
         requiresRecharge,
         flags: (apiMove.flags || []).map(entry => entry.name),
         target, pp: apiMove.pp ?? 10, maxPp: apiMove.pp ?? 10, shortEffect, description,
+        descriptionSource: description ? 'game-text' : 'generated',
+        descriptionVersionGroup: descriptionRecord.versionGroup,
         sourceVersionGroup: sourceVersionGroup?.name || null
     };
 }
@@ -3484,7 +3649,7 @@ function chooseItem(pokemon) {
     const primalOrb = PRIMAL_ORBS[pokemon.speciesKey];
     if (primalOrb && Math.random() < PRIMAL_ORB_RATE) return primalOrb;
 
-    const megaOptions = (pokemon.megaOptions || []).filter(option => option.stone);
+    const megaOptions = (pokemon.megaOptions || []).filter(option => option.stone && (RULESET.allowEstimatedZaMegas || option.standardEligible));
     if (megaOptions.length && Math.random() < MEGA_STONE_RATE) {
         return megaOptions[Math.floor(Math.random() * megaOptions.length)].stone;
     }
@@ -3771,7 +3936,7 @@ async function buildPokemon(apiData) {
         forecastProfile: null, forecastForm: null, flowerGiftProfile: null, flowerGiftForm: null, zenModeProfile: null, zenModeForm: null, schoolingProfile: null, schoolingForm: null, powerConstructProfile: null, powerConstructForm: null, powerConstructActivated: false, hungerSwitchProfile: null, hungerSwitchForm: null, gulpMissileProfile: null, gulpMissileForm: null, teraShiftProfile: null, teraShiftForm: null, teraShiftActivated: false,
         abilityState: { proteanUsed: false, typeChangeSource: null, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, defenseCurlUsed: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false, actedThisTurn: false, intrepidUsed: false, dauntlessUsed: false },
         itemState: { metronomeMove: null, metronomeCount: 0 },
-        volatile: { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, seeded: false, nightmare: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, mustRecharge: false, rampageMove: null, rampageTurns: 0, rampageTotal: 0, rolloutMove: null, rolloutHits: 0, rolloutMax: 5, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null }
+        volatile: { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, ingrain: false, seeded: false, nightmare: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, mustRecharge: false, rampageMove: null, rampageTurns: 0, rampageTotal: 0, rolloutMove: null, rolloutHits: 0, rolloutMax: 5, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null }
     };
     await prepareStanceChangeProfile(pokemon);
     await prepareIceFaceProfile(pokemon);
@@ -3799,6 +3964,11 @@ async function buildPokemon(apiData) {
     await applyHeldFormItem(pokemon, { allowEntryForm: false });
     if (isMegaStone(pokemon.item) || pokemon.megaOptions.some(option => option.requiresMove)) await prepareMegaProfile(pokemon);
     else pokemon.megaProfile = null;
+    if (pokemon.megaProfile && !megaProfileAllowedInStandard(pokemon.megaProfile) && isMegaStone(pokemon.item)) {
+        // 通常ルールでは推定・互換メガを抽選しない。通信失敗で実データを取れない場合も、使えない石を残さない。
+        pokemon.item = chooseItem({ ...pokemon, megaOptions: [] });
+        pokemon.megaProfile = null;
+    }
     pokemon.origAbility = pokemon.ability;
     pokemon.battleBaseTypes = normalizeTypeList(pokemon.types, resolvedTypes, pokemon.apiName);
     ensurePokemonTypeIntegrity(pokemon, 'build-final');
@@ -3885,7 +4055,7 @@ function resetPokemonForNewBattle(pk) {
     pk.modifiers = { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 };
     pk.abilityState = { proteanUsed: false, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, defenseCurlUsed: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false, actedThisTurn: false };
     pk.itemState = { metronomeMove: null, metronomeCount: 0 };
-    pk.volatile = { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, seeded: false, nightmare: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, mustRecharge: false, rampageMove: null, rampageTurns: 0, rampageTotal: 0, rolloutMove: null, rolloutHits: 0, rolloutMax: 5, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null };
+    pk.volatile = { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, ingrain: false, seeded: false, nightmare: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, mustRecharge: false, rampageMove: null, rampageTurns: 0, rampageTotal: 0, rolloutMove: null, rolloutHits: 0, rolloutMax: 5, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null };
     pk.moves.forEach(move => { move.pp = move.maxPp; });
 }
 
@@ -4043,7 +4213,7 @@ function updateBattleUI() {
         button.className = 'move-btn';
         const pp = Number.isFinite(move.pp) ? `${move.pp}/${move.maxPp}` : '∞';
         const shownType = effectiveMoveType(player, move);
-        button.innerHTML = `<div>${escapeHTML(move.name)}</div><div class="move-meta">${escapeHTML(TYPE_NAMES[shownType] || 'タイプ名未取得')}｜${escapeHTML(MOVE_CATEGORY_NAMES[move.category] || '分類不明')}｜威力:${displayedMovePower(player, move)}／命中:${move.accuracy ?? '-'}／残り:${pp}</div><div class="move-description">${escapeHTML(moveDescription(player, move))}</div>`;
+        button.innerHTML = `<div>${escapeHTML(move.name)}</div><div class="move-meta">${escapeHTML(TYPE_NAMES[shownType] || 'タイプ名未取得')}｜${escapeHTML(MOVE_CATEGORY_NAMES[move.category] || '分類不明')}｜威力:${displayedMovePower(player, move)}／命中:${move.accuracy ?? '-'}／残り:${pp}</div><div class="move-description">${escapeHTML(moveDescription(player, move))}</div><div class="move-source">${escapeHTML(moveDescriptionSourceLabel(move))}</div>`;
         const batonTargets = move.origName === 'baton-pass' ? availableBatonPassTargets(true) : [];
         const pivotTargets = PIVOT_MOVES.has(move.origName) ? availablePivotTargets(true) : [];
         button.disabled = !legalNames.has(move.origName) || isAnimating || (move.origName === 'baton-pass' && !batonTargets.length);
@@ -4114,8 +4284,8 @@ function renderSwitchControls(player) {
     } else if (player.volatile.rampageMove) {
         button.textContent = `交代できません（${player.volatile.rampageMove.name}を連続使用中）`;
         button.disabled = true;
-    } else if (player.volatile.trapped > 0 || abilityTrapped) {
-        button.textContent = abilityTrapped ? `交代できません（${abilityName(foe.ability)}）` : '交代できません（拘束中）';
+    } else if (player.volatile.trapped > 0 || player.volatile.ingrain || abilityTrapped) {
+        button.textContent = player.volatile.ingrain ? '交代できません（ねをはる）' : (abilityTrapped ? `交代できません（${abilityName(foe.ability)}）` : '交代できません（拘束中）');
         button.disabled = true;
     } else if (!candidates.length) {
         button.textContent = '交代できるポケモンがいません';
@@ -4253,8 +4423,8 @@ async function startBattlePhase(options = {}) {
     syncShieldsDownForm(openingPlayer, true, false);
     syncShieldsDownForm(openingEnemy, false, false);
     refreshWeatherDependentForms(false);
-    syncHpDependentAbilityForms(openingPlayer, false);
-    syncHpDependentAbilityForms(openingEnemy, false);
+    syncHpDependentAbilityForms(openingPlayer, false, FORM_EVENT.BATTLE_START);
+    syncHpDependentAbilityForms(openingEnemy, false, FORM_EVENT.BATTLE_START);
     await processPendingHeldItemSwitches();
     updateBattleUI();
 }
@@ -4298,10 +4468,6 @@ function getAuraPowerMultiplier(moveType) {
     const aura = moveType === 'dark' ? 'dark-aura' : moveType === 'fairy' ? 'fairy-aura' : null;
     if (!aura || !active.some(pk => hasAbility(pk, aura))) return 1;
     return active.some(pk => hasAbility(pk, 'aura-break')) ? 0.75 : (4 / 3);
-}
-function highestNonHpStat(pk) {
-    const order = ['attack', 'defense', 'special-attack', 'special-defense', 'speed'];
-    return order.reduce((best, stat) => pk.stats[stat] > pk.stats[best] ? stat : best, order[0]);
 }
 function paradoxFieldActive(pk) {
     if (hasAbility(pk, 'protosynthesis')) return effectiveWeatherFor(pk) === 'sun';
@@ -4457,7 +4623,6 @@ function activateEntryAbility(pk, isPlayer, fromMega = false) {
     updateParadoxBoost(pk, true);
     syncForecastForm(pk, true);
     syncFlowerGiftForm(pk, true);
-    syncHpDependentAbilityForms(pk, true);
     activateTeraShift(pk, true);
 }
 
@@ -4835,6 +5000,7 @@ function captureBatonPassState(pk) {
         confused: pk.volatile.confused || 0,
         trapped: pk.volatile.trapped || 0,
         trappedBy: pk.volatile.trappedBy || null,
+        ingrain: Boolean(pk.volatile.ingrain),
         seeded: Boolean(pk.volatile.seeded),
         perish: pk.volatile.perish || 0,
         substitute: pk.volatile.substitute || 0,
@@ -4848,6 +5014,7 @@ function applyBatonPassState(pk, state) {
     pk.volatile.confused = state.confused;
     pk.volatile.trapped = state.trapped;
     pk.volatile.trappedBy = state.trappedBy;
+    pk.volatile.ingrain = Boolean(state.ingrain);
     pk.volatile.seeded = state.seeded;
     pk.volatile.perish = state.perish;
     pk.volatile.substitute = state.substitute;
@@ -4858,7 +5025,7 @@ function applyBatonPassState(pk, state) {
 function enemyCanSwitch(enemy) {
     if (!enemy || enemy.stats.hp <= 0 || enemy.volatile.chargingMove || enemy.volatile.mustRecharge || enemy.volatile.rolloutMove || enemy.volatile.rampageMove) return false;
     if (State.ai.enemySwitchCooldown > 0 || State.ai.enemyLastSwitchTurn === State.turn - 1 || enemy.turnsActive < 1) return false;
-    if (enemy.volatile.trapped > 0) return false;
+    if (enemy.volatile.trapped > 0 || enemy.volatile.ingrain) return false;
     const player = State.playerTeam[State.activePlayerIdx];
     const ghostCanEscape = enemy.types.includes('ghost');
     if (!hasItem(enemy, 'shed-shell') && player?.stats.hp > 0 && !ghostCanEscape) {
@@ -5378,15 +5545,17 @@ async function executeTurn(playerMove, options = {}) {
     updateProtectChainForSelection(player, resolvedPlayerMove);
     updateProtectChainForSelection(enemy, resolvedEnemyMove);
     if (canMegaEvolve(enemy, false)) enemy.megaPending = true;
+    if (RULESET.megaSpeedMode === 'gen7-plus') {
+        // 第7世代以降型: メガ後の素早さ・特性を、このターンの行動順から使用する。
+        if (player.megaPending) await applyMegaEvolution(player, true);
+        if (enemy.megaPending) await applyMegaEvolution(enemy, false);
+    }
     refreshActiveParadoxBoosts(false);
     const actions = determineOrder(player, enemy, resolvedPlayerMove, resolvedEnemyMove);
     actions.forEach((action, index) => { action.atk.abilityState.movingLast = index === actions.length - 1; });
-    let megaTimingResolved = false;
     for (const action of actions) {
-        if (!megaTimingResolved) {
-            megaTimingResolved = true;
-            if (player.megaPending) await applyMegaEvolution(player, true);
-            if (enemy.megaPending) await applyMegaEvolution(enemy, false);
+        if (RULESET.megaSpeedMode === 'gen6') {
+            if (action.atk.megaPending) await applyMegaEvolution(action.atk, action.isPlayer);
         }
         const liveAttacker = action.isPlayer ? State.playerTeam[State.activePlayerIdx] : State.enemyTeam[State.activeEnemyIdx];
         const liveDefender = action.isPlayer ? State.enemyTeam[State.activeEnemyIdx] : State.playerTeam[State.activePlayerIdx];
@@ -5541,7 +5710,7 @@ async function executeSwitchTurn(targetIndex) {
     const enemy = State.enemyTeam[State.activeEnemyIdx];
     const ghostCanEscape = outgoing?.types.includes('ghost');
     const abilityTrapped = !hasItem(outgoing, 'shed-shell') && enemy?.stats.hp > 0 && !ghostCanEscape && ((hasAbility(enemy, 'shadow-tag') && !hasAbility(outgoing, 'shadow-tag')) || (hasAbility(enemy, 'arena-trap') && isGrounded(outgoing)) || (hasAbility(enemy, 'magnet-pull') && outgoing.types.includes('steel')));
-    if (!outgoing || !target || !enemy || targetIndex === State.activePlayerIdx || target.stats.hp <= 0 || outgoing.volatile.trapped > 0 || abilityTrapped) return;
+    if (!outgoing || !target || !enemy || targetIndex === State.activePlayerIdx || target.stats.hp <= 0 || outgoing.volatile.trapped > 0 || outgoing.volatile.ingrain || abilityTrapped) return;
     logMsg(`--- ターン ${State.turn} ---`, true);
     State.turn++;
     for (const pk of [outgoing, enemy]) {
@@ -6915,6 +7084,10 @@ async function handleSpecialStatusMove(atk, def, move, isPlayer) {
             return true;
         }
         case 'perish-song': atk.volatile.perish = def.volatile.perish = 3; logMsg('🎵 両方のポケモンに滅びのカウントが始まった！'); return true;
+        case 'ingrain':
+            if (atk.volatile.ingrain) logMsg(`🌱 ${escapeHTML(atk.name)} はすでに根を張っている！`);
+            else { atk.volatile.ingrain = true; logMsg(`🌱 ${escapeHTML(atk.name)} は地面に根を張った！`); }
+            return true;
         case 'roar': case 'whirlwind': await forceSwitchTarget(def, !isPlayer, atk); return true;
         case 'protect': case 'detect': case 'spiky-shield': case 'kings-shield': case 'baneful-bunker': case 'obstruct': case 'silk-trap': case 'burning-bulwark':
             tryProtectMove(atk, move); return true;
@@ -6925,6 +7098,10 @@ async function handleSpecialStatusMove(atk, def, move, isPlayer) {
 
 async function forceSwitchTarget(target, isPlayerTarget, source = null) {
     if (!target || target.stats.hp <= 0) return false;
+    if (target.volatile?.ingrain) {
+        logMsg(`🌱 ${escapeHTML(target.name)} は地面に根を張っているため交代させられない！`);
+        return false;
+    }
     if (hasAbility(target, 'suction-cups') || hasAbility(target, 'guard-dog')) {
         logMsg(`⚓ ${escapeHTML(target.name)} は ${escapeHTML(abilityName(target.ability))} で交代させられない！`);
         return false;
@@ -7117,6 +7294,7 @@ async function applyEndTurnEffects() {
             else damageEndTurn(pk, Math.floor(pk.stats.maxHp / 8), 'くろいヘドロ');
         }
         if (hasItem(pk, 'sticky-barb')) damageEndTurn(pk, Math.floor(pk.stats.maxHp / 8), 'くっつきバリ');
+        if (pk.volatile.ingrain) healPokemon(pk, Math.max(1, Math.floor(pk.stats.maxHp / 16)), `${pk.name} は ねをはる で回復した！`);
         if (hasItem(pk, 'flame-orb')) applyMajorStatus(pk, 'brn');
         if (hasItem(pk, 'toxic-orb')) applyMajorStatus(pk, 'tox');
         if (State.field.terrain.name === 'grassy' && isGrounded(pk)) healPokemon(pk, Math.floor(pk.stats.maxHp / 16), `${pk.name} はグラスフィールドで回復した！`);
@@ -7141,7 +7319,7 @@ async function applyEndTurnEffects() {
             if (pk.volatile.perish === 0) pk.stats.hp = 0;
         }
         syncShieldsDownForm(pk, isPlayer, true);
-        syncHpDependentAbilityForms(pk, true);
+        syncHpDependentAbilityForms(pk, true, FORM_EVENT.END_OF_TURN);
         toggleHungerSwitch(pk, true);
         updateBattleUI();
         await sleep(180);
@@ -7209,7 +7387,6 @@ async function applyHazards(pk, isPlayer) {
     if (pk.stats.hp > 0 && side.stickyWeb && isGrounded(pk)) changeStat(pk, 'speed', -1, null);
     if (pk.stats.hp > 0) triggerBerries(pk);
     syncShieldsDownForm(pk, isPlayer, true);
-    syncHpDependentAbilityForms(pk, true);
     syncForecastForm(pk, true);
     syncFlowerGiftForm(pk, true);
     updateBattleUI();
@@ -7234,7 +7411,7 @@ function resetOnSwitch(pk, isLeaving = true) {
         ? normalizeTypeList(pk.megaProfile.types, pk.battleBaseTypes, pk.megaProfile.apiName)
         : normalizeTypeList(pk.battleBaseTypes || pk.originalTypes || pk.types, ['normal'], pk.apiName || pk.speciesKey || '');
     pk.modifiers = { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 };
-    pk.volatile.flinch = false; pk.volatile.protecting = false; pk.volatile.protectMove = null; pk.volatile.protectChain = 0; clearChargeState(pk); clearRolloutState(pk); clearRampageState(pk); pk.volatile.mustRecharge = false; pk.volatile.confused = 0; pk.volatile.infatuatedBy = null; pk.volatile.taunt = 0; pk.volatile.trapped = 0; pk.volatile.trappedBy = null;
+    pk.volatile.flinch = false; pk.volatile.protecting = false; pk.volatile.protectMove = null; pk.volatile.protectChain = 0; clearChargeState(pk); clearRolloutState(pk); clearRampageState(pk); pk.volatile.mustRecharge = false; pk.volatile.confused = 0; pk.volatile.infatuatedBy = null; pk.volatile.taunt = 0; pk.volatile.trapped = 0; pk.volatile.trappedBy = null; pk.volatile.ingrain = false;
     pk.volatile.seeded = false; pk.volatile.nightmare = false; pk.volatile.saltCure = false; pk.volatile.substitute = 0; pk.volatile.perish = 0;
     pk.volatile.micle = false; pk.volatile.focusEnergy = 0; pk.volatile.flashFire = false; pk.volatile.disabledMove = null; pk.volatile.disableTurns = 0; pk.volatile.faintEventProcessed = false; pk.volatile.lastHitCritical = false; pk.volatile.pendingItemSwitch = null;
     pk.abilityState.proteanUsed = false; pk.abilityState.typeChangeSource = null; pk.abilityState.unburden = false; pk.abilityState.justSwitched = !isLeaving; pk.abilityState.charged = false; pk.abilityState.defenseCurlUsed = false; pk.abilityState.slowStartTurns = 0; pk.abilityState.actedThisTurn = false;
@@ -7385,6 +7562,9 @@ window.addEventListener('unhandledrejection', event => {
 });
 
 window.addEventListener('load', () => {
+    State.audit.coreSelfCheckErrors = runCoreRegressionSelfCheck();
+    const rulesetLabel = document.getElementById('current-ruleset-label');
+    if (rulesetLabel) rulesetLabel.textContent = `ルール: ${RULESET.label}`;
     applyTheme(getSelectedThemeKey());
     renderImplementedItemList();
     renderFactorySymbols();

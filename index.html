@@ -460,7 +460,7 @@
         <button id="btn-restart-game" type="button">もう一度遊ぶ</button>
     </div>
     <div id="swap-screen" class="hidden">
-        <h3>勝利！相手のパーティから1匹交換しますか？</h3>
+        <h3>勝利！相手のパーティから1匹奪いますか？</h3>
         <p>相手のパーティ（欲しいポケモンを選択）</p>
         <div id="enemy-pool" class="flex"></div>
         <p>自分のパーティ（外すポケモンを選択）</p>
@@ -475,7 +475,7 @@
     <div class="modal-box">
         <h3 id="options-title">オプション</h3>
         <p>現在のゲームを終了すると、連勝記録は0に戻ります。</p>
-        <div class="ruleset-note"><b>採用ルール:</b> 第7世代以降型のメガシンカ行動順を使用します。公式値または取得済みデータがないZ-Aメガの推定能力値は、通常の抽選へ混ぜません。技説明は「作品内説明」と「本作生成説明」を区別して表示します。</div>
+        <div class="ruleset-note"><b>採用ルール:</b> 第7世代以降型のメガシンカ行動順を使用します。公式値または取得済みデータがないZ-Aメガの推定能力値は、通常の抽選へ混ぜません。技説明は「作品内説明」と「本作生成説明」を区別して表示します。ダイウォールと外伝のダーク技は、関連システムを実装するまで抽選・呼び出し・実行対象から除外します。</div>
         <div class="theme-config">
             <label for="theme-select">テーマを選ぶ</label>
             <select id="theme-select" class="theme-select">
@@ -957,7 +957,7 @@ const OHKO_MOVES = new Set(['fissure', 'guillotine', 'horn-drill', 'sheer-cold']
 const FIXED_DAMAGE_MOVES = new Set(['sonic-boom', 'dragon-rage', 'night-shade', 'seismic-toss', 'super-fang', 'natures-madness', 'ruination', 'endeavor', 'psywave', 'final-gambit', 'counter', 'mirror-coat', 'metal-burst']);
 const SELF_DESTRUCT_MOVES = new Set(['explosion', 'self-destruct', 'memento', 'misty-explosion', 'healing-wish', 'lunar-dance', 'final-gambit']);
 const DAMP_BLOCKED_MOVES = new Set(['explosion', 'self-destruct', 'misty-explosion', 'mind-blown']);
-const PROTECT_MOVES = new Set(['protect', 'detect', 'spiky-shield', 'kings-shield', 'baneful-bunker', 'obstruct', 'silk-trap', 'burning-bulwark', 'endure', 'max-guard']);
+const PROTECT_MOVES = new Set(['protect', 'detect', 'spiky-shield', 'kings-shield', 'baneful-bunker', 'obstruct', 'silk-trap', 'burning-bulwark', 'endure']);
 const FORCED_SWITCH_MOVE_PRIORITIES = Object.freeze({
     roar: -6,
     whirlwind: -6,
@@ -7646,6 +7646,10 @@ function showSwapScreen() {
 /* ========================================================================== */
 /* v14: シングルバトル未実装技・特性 統合互換レイヤー                     */
 /* ========================================================================== */
+const V15_OMITTED_MOVES = new Set([
+    'max-guard',
+    'shadow-down','shadow-half','shadow-hold','shadow-mist','shadow-panic','shadow-shed','shadow-sky'
+]);
 const V14_DOUBLE_ONLY_MOVES = new Set([
     'follow-me','helping-hand','rage-powder','after-you','ally-switch','quash','spotlight','dragon-cheer',
     'aromatic-mist','hold-hands','coaching'
@@ -7658,13 +7662,13 @@ const V14_SINGLE_SPECIAL_MOVES = new Set([
     'gastro-acid','lucky-chant','copycat','power-swap','guard-swap','worry-seed','heart-swap','aqua-ring','magnet-rise',
     'switcheroo','lunar-dance','wide-guard','guard-split','power-split','wonder-room','magic-room','soak','simple-beam',
     'entrainment','quick-guard','reflect-type','bestow','mat-block','trick-or-treat','ion-deluge','forests-curse',
-    'crafty-shield','electrify','fairy-lock','powder','laser-focus','speed-swap','instruct','max-guard','magic-powder',
+    'crafty-shield','electrify','fairy-lock','powder','laser-focus','speed-swap','instruct','magic-powder',
     'teatime','octolock','corrosive-gas','power-shift','victory-dance','shelter','lunar-blessing','take-heart',
-    'revival-blessing','doodle','shed-tail','chilly-reception','shadow-down','shadow-half','shadow-hold','shadow-mist',
-    'shadow-panic','shadow-shed','shadow-sky'
+    'revival-blessing','doodle','shed-tail','chilly-reception'
 ]);
 for (const moveName of V14_SINGLE_SPECIAL_MOVES) SPECIAL_STATUS_MOVES.add(moveName);
 for (const moveName of V14_DOUBLE_ONLY_MOVES) SPECIAL_STATUS_MOVES.delete(moveName);
+for (const moveName of V15_OMITTED_MOVES) SPECIAL_STATUS_MOVES.delete(moveName);
 POST_DAMAGE_SPECIAL_MOVES.add('hard-press');
 
 Object.assign(ABILITY_NAMES, {
@@ -7692,7 +7696,7 @@ const V14_DANCE_MOVES = new Set([
 ]);
 const V14_UNCOPYABLE_MOVES = new Set([
     'struggle','chatter','sketch','mimic','metronome','mirror-move','copycat','assist','sleep-talk','instruct',
-    'transform','revival-blessing','behemoth-bash','behemoth-blade','dynamax-cannon','max-guard'
+    'transform','revival-blessing','behemoth-bash','behemoth-blade','dynamax-cannon'
 ]);
 const V14_UNREPLACEABLE_ABILITIES = new Set([
     ...ABILITY_CANNOT_BE_REPLACED,'neutralizing-gas','illusion','imposter','embody-aspect','teraform-zero'
@@ -7746,7 +7750,7 @@ canRemoveHeldItem = function(pk, item = pk?.item) {
 
 const v14BaseIsMoveOperational = isMoveOperational;
 isMoveOperational = function(move) {
-    if (!move || V14_DOUBLE_ONLY_MOVES.has(move.origName)) return false;
+    if (!move || V14_DOUBLE_ONLY_MOVES.has(move.origName) || V15_OMITTED_MOVES.has(move.origName)) return false;
     if (move.origName === 'hard-press') return true;
     if (V14_SINGLE_SPECIAL_MOVES.has(move.origName)) return true;
     return v14BaseIsMoveOperational(move);
@@ -8025,13 +8029,13 @@ function v14FindKnownMove(slug) {
 function v14CallableMoves(exclusions = new Set()) {
     const map = new Map();
     for (const pk of v14AllPokemon()) for (const move of pk.moves || []) {
-        if (!move?.origName || V14_UNCOPYABLE_MOVES.has(move.origName) || V14_DOUBLE_ONLY_MOVES.has(move.origName) || exclusions.has(move.origName)) continue;
+        if (!move?.origName || V14_UNCOPYABLE_MOVES.has(move.origName) || V14_DOUBLE_ONLY_MOVES.has(move.origName) || V15_OMITTED_MOVES.has(move.origName) || exclusions.has(move.origName)) continue;
         if (isMoveOperational(move)) map.set(move.origName, move);
     }
     return [...map.values()];
 }
 async function v14CallMove(user, target, sourceMove, isPlayer, label = '') {
-    if (!sourceMove) { logMsg('❌ 呼び出せる技がなかった！'); return false; }
+    if (!sourceMove || V15_OMITTED_MOVES.has(sourceMove.origName)) { logMsg('❌ 呼び出せる技がなかった！'); return false; }
     const called = { ...sourceMove, sourceMove, pp: Infinity, calledBySleepTalk: true, v14Called: true };
     if (label) logMsg(`${label} ${escapeHTML(called.name)} が選ばれた！`);
     await performAction(user, target, called, isPlayer);
@@ -8249,14 +8253,13 @@ applyEndTurnEffects = async function() {
         }
     }
     await v14BaseEndTurn();
-    if (State.field.shadowSky>0) for (const pk of v14ActivePokemon()) if (!hasAbility(pk,'magic-guard')) damageEndTurn(pk,Math.max(1,Math.floor(pk.stats.maxHp/16)),'ダークウェザー');
     for (const pk of v14ActivePokemon()) v14SyncMimicry(pk);
 };
 
 const v14BaseDecrementTimers = decrementTimers;
 decrementTimers = function() {
     v14BaseDecrementTimers();
-    const fieldKeys=['gravity','wonderRoom','magicRoom','mudSport','waterSport','ionDeluge','fairyLock','shadowSky'];
+    const fieldKeys=['gravity','wonderRoom','magicRoom','mudSport','waterSport','ionDeluge','fairyLock'];
     for (const key of fieldKeys) if ((State.field[key]||0)>0) State.field[key]--;
     for (const side of [State.field.player,State.field.enemy]) for (const key of ['mist','safeguard','luckyChant','wideGuard','quickGuard','craftyShield','matBlock']) if ((side[key]||0)>0) side[key]--;
     for (const pk of v14ActivePokemon()) {
@@ -8313,11 +8316,11 @@ handleSpecialStatusMove = async function(atk,def,move,isPlayer) {
         case 'sketch': { const copied=def.moves.find(m=>m.origName===def.lastMove)||v14FindKnownMove(def.lastMove); if(!copied||V14_UNCOPYABLE_MOVES.has(copied.origName)) logMsg('❌ スケッチできなかった！'); else if(v14CopyMoveIntoSlot(atk,copied,'sketch')) logMsg(`🎨 ${escapeHTML(atk.name)} は ${escapeHTML(copied.name)} をスケッチした！`); return true; }
         case 'metronome': { const pool=v14CallableMoves(new Set(['metronome'])); await v14CallMove(atk,def,pool[Math.floor(Math.random()*pool.length)],isPlayer,'🎲 ゆびをふるで'); return true; }
         case 'mirror-move': case 'copycat': { const slug=def.lastMove||State.field.lastMove; const copied=v14FindKnownMove(slug); await v14CallMove(atk,def,copied,isPlayer,'🦜'); return true; }
-        case 'assist': { const team=isPlayer?State.playerTeam:State.enemyTeam; const pool=team.filter(pk=>pk!==atk).flatMap(pk=>pk.moves||[]).filter(m=>!V14_UNCOPYABLE_MOVES.has(m.origName)&&!V14_DOUBLE_ONLY_MOVES.has(m.origName)); await v14CallMove(atk,def,pool[Math.floor(Math.random()*pool.length)],isPlayer,'🐾 ねこのてで'); return true; }
+        case 'assist': { const team=isPlayer?State.playerTeam:State.enemyTeam; const pool=team.filter(pk=>pk!==atk).flatMap(pk=>pk.moves||[]).filter(m=>!V14_UNCOPYABLE_MOVES.has(m.origName)&&!V14_DOUBLE_ONLY_MOVES.has(m.origName)&&!V15_OMITTED_MOVES.has(m.origName)); await v14CallMove(atk,def,pool[Math.floor(Math.random()*pool.length)],isPlayer,'🐾 ねこのてで'); return true; }
         case 'transform': v14TransformInto(atk,def); return true;
         case 'conversion': { const first=atk.moves.find(m=>m.origName!=='conversion'); if(first){atk.types=[effectiveMoveType(atk,first)];atk.abilityState.typeChangeSource='conversion';logMsg(`🔁 ${escapeHTML(atk.name)} は ${escapeHTML(TYPE_NAMES[atk.types[0]])}タイプになった！`);} return true; }
         case 'conversion-2': { const last=v14FindKnownMove(def.lastMove); if(!last){logMsg('❌ しかし、うまく決まらなかった！');return true;} atk.types=[v14ResistingType(effectiveMoveType(def,last))];atk.abilityState.typeChangeSource='conversion-2';logMsg(`🔁 ${escapeHTML(atk.name)} は ${escapeHTML(TYPE_NAMES[atk.types[0]])}タイプになった！`);return true; }
-        case 'spider-web': case 'mean-look': case 'block': case 'shadow-hold': def.volatile.trapped=Math.max(def.volatile.trapped,99);def.volatile.trappedBy=atk;logMsg(`🔒 ${escapeHTML(def.name)} は交代できなくなった！`);return true;
+        case 'spider-web': case 'mean-look': case 'block': def.volatile.trapped=Math.max(def.volatile.trapped,99);def.volatile.trappedBy=atk;logMsg(`🔒 ${escapeHTML(def.name)} は交代できなくなった！`);return true;
         case 'mind-reader': case 'lock-on': atk.volatile.lockOnTarget=def;atk.volatile.lockOnTurns=2;logMsg(`🎯 ${escapeHTML(atk.name)} は ${escapeHTML(def.name)} に狙いを定めた！`);return true;
         case 'curse': if(atk.types.includes('ghost')){const cost=Math.floor(atk.stats.maxHp/2);if(atk.stats.hp<=cost)logMsg('❌ しかし体力が足りない！');else{atk.stats.hp-=cost;def.volatile.cursed=true;logMsg(`👻 ${escapeHTML(def.name)} にのろいをかけた！`);}}else{changeStat(atk,'attack',1,atk);changeStat(atk,'defense',1,atk);changeStat(atk,'speed',-1,atk);}return true;
         case 'spite': { const last=def.moves.find(m=>m.origName===def.lastMove);if(last){last.pp=Math.max(0,last.pp-4);logMsg(`👻 ${escapeHTML(last.name)} のPPを4減らした！`);}else logMsg('❌ しかし、うまく決まらなかった！');return true; }
@@ -8374,7 +8377,6 @@ handleSpecialStatusMove = async function(atk,def,move,isPlayer) {
         case 'powder': def.volatile.powder=true;logMsg(`🌫️ ${escapeHTML(def.name)} はふんじんを浴びた！`);return true;
         case 'laser-focus': atk.volatile.laserFocus=true;logMsg(`🎯 ${escapeHTML(atk.name)} の次の攻撃は急所に当たる！`);return true;
         case 'instruct': { const repeated=def.moves.find(m=>m.origName===def.lastMove);await v14CallMove(def,atk,repeated,!isPlayer,'📣 さいはいで');return true; }
-        case 'max-guard': tryProtectMove(atk,move);return true;
         case 'teatime': for(const pk of [atk,def])if(pk.item&&isBerry(pk.item)){const berry=pk.item;if(!triggerBerries(pk)){consumeHeldItem(pk);logMsg(`🫖 ${escapeHTML(pk.name)} は ${escapeHTML(itemName(berry))} を食べた！`);}}logMsg('🫖 おちゃかいが開かれた！');return true;
         case 'octolock': def.volatile.octolock=true;def.volatile.trapped=99;def.volatile.trappedBy=atk;logMsg(`🐙 ${escapeHTML(def.name)} はたこがためされた！`);return true;
         case 'corrosive-gas': if(def.item&&canRemoveHeldItem(def,def.item)){const lost=def.item;def.item=null;markItemLost(def,lost);logMsg(`🧪 ${escapeHTML(def.name)} の ${escapeHTML(itemName(lost))} は溶けた！`);}else logMsg('❌ 溶かせる道具がなかった！');return true;
@@ -8386,12 +8388,6 @@ handleSpecialStatusMove = async function(atk,def,move,isPlayer) {
         case 'doodle': if(!V14_UNREPLACEABLE_ABILITIES.has(def.ability))v14ReplaceAbility(atk,def.ability,atk);else logMsg('❌ うつしえに失敗した！');return true;
         case 'shed-tail': { const cost=Math.floor(atk.stats.maxHp/2);if(atk.stats.hp<=cost){logMsg('❌ 体力が足りない！');return true;}atk.stats.hp-=cost;const target=(isPlayer?State.playerTeam:State.enemyTeam).map((pk,index)=>({pk,index})).find(entry=>entry.pk!==atk&&entry.pk.stats.hp>0);if(!target){logMsg('❌ 交代先がいない！');return true;}const incoming=isPlayer?await switchPlayerTo(target.index,{pivot:true}):await switchEnemyTo(target.index,'しっぽきり',{pivot:true});if(incoming)incoming.volatile.substitute=Math.max(1,Math.floor(incoming.stats.maxHp/4));return true; }
         case 'chilly-reception': State.field.weather={name:'snow',turns:5};refreshWeatherDependentForms(true);await v14SwitchUser(atk,isPlayer,'さむいギャグ');return true;
-        case 'shadow-down': changeStat(def,'defense',-2,atk);return true;
-        case 'shadow-half': for(const pk of v14ActivePokemon())pk.stats.hp=Math.max(1,Math.ceil(pk.stats.hp/2));logMsg('🌑 全員のHPが半分になった！');return true;
-        case 'shadow-mist': changeStat(def,'evasion',-2,atk);return true;
-        case 'shadow-panic': if(!hasAbility(def,'own-tempo')){def.volatile.confused=2+Math.floor(Math.random()*4);logMsg(`💫 ${escapeHTML(def.name)} は混乱した！`);}return true;
-        case 'shadow-shed': for(const side of [State.field.player,State.field.enemy]){side.reflect=0;side.lightScreen=0;side.safeguard=0;}logMsg('🌑 場の壁としんぴのまもりを消した！');return true;
-        case 'shadow-sky': State.field.shadowSky=5;logMsg('🌑 ダークウェザーになった！');return true;
         default: return await v14BaseSpecialStatus(atk,def,move,isPlayer);
     }
 };

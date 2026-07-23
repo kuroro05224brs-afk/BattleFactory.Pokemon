@@ -3928,8 +3928,8 @@ async function buildPokemon(apiData) {
     if (!baseStats.hp || !apiData.moves?.length) return null;
 
     const rawAbilityEntries = (apiData.abilities || []).filter(entry => entry?.ability);
-    const normalAbilities = rawAbilityEntries.filter(entry => !entry.is_hidden);
-    const chosenAbilityRecord = shuffle(normalAbilities.length ? normalAbilities : rawAbilityEntries)[0] || null;
+    // 通常特性・ゆめとくせいを区別せず、利用可能な各特性スロットを等確率で抽選する。
+    const chosenAbilityRecord = shuffle(rawAbilityEntries)[0] || null;
     const baseAbilityEntry = chosenAbilityRecord?.ability || null;
     rawAbilityEntries.filter(entry => !isAbilityOperational(entry.ability.name)).forEach(entry => State.audit.unsupportedAbilities.add(entry.ability.name));
     const [species, moves] = await Promise.all([
@@ -3960,12 +3960,13 @@ async function buildPokemon(apiData) {
         originalTypes: [...resolvedTypes], weight: apiData.weight || 1,
         baseStats: { ...baseStats }, stats: generated.stats, ivs: generated.ivs, evs: generated.evs, nature: generated.nature,
         natureUp: generated.natureUp, natureDown: generated.natureDown, ability: baseAbility, origAbility: baseAbility,
+        abilityIsHidden: Boolean(chosenAbilityRecord?.is_hidden), abilitySlot: Number(chosenAbilityRecord?.slot || 0),
         modifiers: { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 },
         moves, item: null, origItem: null, status: 'none', statusTurns: 0, toxicCounter: 0, lockedMove: null, lastMove: null,
         lastDamageTaken: null, turnsActive: 0, megaOptions: [], megaProfile: null, megaPending: false, isMega: false, baseSnapshot: null,
         stanceProfile: null, stanceForm: null, iceFaceProfile: null, iceFaceForm: null, shieldsDownProfile: null, shieldsDownForm: null, shieldsDownColor: null, palafinProfile: null, palafinForm: null, disguiseProfile: null, disguiseForm: null,
         forecastProfile: null, forecastForm: null, flowerGiftProfile: null, flowerGiftForm: null, zenModeProfile: null, zenModeForm: null, schoolingProfile: null, schoolingForm: null, powerConstructProfile: null, powerConstructForm: null, powerConstructActivated: false, hungerSwitchProfile: null, hungerSwitchForm: null, gulpMissileProfile: null, gulpMissileForm: null, teraShiftProfile: null, teraShiftForm: null, teraShiftActivated: false,
-        abilityState: { proteanUsed: false, typeChangeSource: null, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, defenseCurlUsed: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false, actedThisTurn: false, intrepidUsed: false, dauntlessUsed: false },
+        abilityState: { proteanUsed: false, typeChangeSource: null, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, defenseCurlUsed: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false, actedThisTurn: false, activeMoveActions: 0, usedMoveNames: [], intrepidUsed: false, dauntlessUsed: false },
         itemState: { metronomeMove: null, metronomeCount: 0 },
         volatile: { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, ingrain: false, seeded: false, nightmare: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, mustRecharge: false, rampageMove: null, rampageTurns: 0, rampageTotal: 0, rolloutMove: null, rolloutHits: 0, rolloutMax: 5, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null }
     };
@@ -4085,7 +4086,7 @@ function resetPokemonForNewBattle(pk) {
     pk.ability = pk.origAbility;
     pk.megaPending = false;
     pk.modifiers = { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0, accuracy: 0, evasion: 0 };
-    pk.abilityState = { proteanUsed: false, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, defenseCurlUsed: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false, actedThisTurn: false };
+    pk.abilityState = { proteanUsed: false, unburden: false, battleBondUsed: false, justSwitched: false, charged: false, defenseCurlUsed: false, slowStartTurns: 0, paradoxStat: null, paradoxSource: null, movingLast: false, actedThisTurn: false, activeMoveActions: 0, usedMoveNames: [] };
     pk.itemState = { metronomeMove: null, metronomeCount: 0 };
     pk.volatile = { flinch: false, confused: 0, infatuatedBy: null, taunt: 0, trapped: 0, trappedBy: null, ingrain: false, seeded: false, nightmare: false, saltCure: false, protecting: false, protectMove: null, protectChain: 0, chargingMove: null, semiInvulnerable: false, mustRecharge: false, rampageMove: null, rampageTurns: 0, rampageTotal: 0, rolloutMove: null, rolloutHits: 0, rolloutMax: 5, substitute: 0, perish: 0, micle: false, focusEnergy: 0, flashFire: false, disabledMove: null, disableTurns: 0, faintEventProcessed: false, lastHitCritical: false, pendingItemSwitch: null };
     pk.moves.forEach(move => { move.pp = move.maxPp; });
@@ -5215,6 +5216,9 @@ function statusMoveScore(enemy, player, move, threatDamage) {
 }
 
 function scoreEnemyMove(enemy, player, move, context = {}) {
+    // 失敗が確定している専用条件技は、AIが通常候補として選ばない。
+    if (move.origName === 'fake-out' && Number(enemy?.abilityState?.activeMoveActions || 0) > 0) return -90;
+    if (move.origName === 'last-resort' && !canUseLastResort(enemy)) return -90;
     const threatDamage = bestDamageOption(player, enemy, true).damage;
     let score = Math.random() * 1.2;
     if (isDamagingMove(move)) {
@@ -5931,6 +5935,23 @@ function applyFlingEffect(target, flingData) {
     }
 }
 
+function moveCountsForLastResortHistory(pk, move, reflectedAction = false, calledBySleepTalk = false) {
+    if (!pk || !move || reflectedAction || calledBySleepTalk || move.v14Called) return false;
+    return Array.isArray(pk.moves) && pk.moves.some(slot => slot?.origName === move.origName);
+}
+function recordMoveForLastResort(pk, move) {
+    pk.abilityState ||= {};
+    if (!Array.isArray(pk.abilityState.usedMoveNames)) pk.abilityState.usedMoveNames = [];
+    if (!pk.abilityState.usedMoveNames.includes(move.origName)) pk.abilityState.usedMoveNames.push(move.origName);
+}
+function canUseLastResort(pk) {
+    if (!pk || !Array.isArray(pk.moves)) return false;
+    const otherMoves = [...new Set(pk.moves.map(move => move?.origName).filter(name => name && name !== 'last-resort'))];
+    if (!otherMoves.length) return false;
+    const used = new Set(Array.isArray(pk.abilityState?.usedMoveNames) ? pk.abilityState.usedMoveNames : []);
+    return otherMoves.every(name => used.has(name));
+}
+
 async function performAction(atk, def, move, isPlayer) {
     if (atk.stats.hp <= 0 || def.stats.hp <= 0) return;
     if (move?.isRechargeTurn || move?.origName === '__recharge__') {
@@ -5942,6 +5963,17 @@ async function performAction(atk, def, move, isPlayer) {
     }
     const reflectedAction = Boolean(move.reflected);
     const calledBySleepTalk = Boolean(move.calledBySleepTalk);
+    atk.abilityState ||= {};
+    if (!Number.isFinite(atk.abilityState.activeMoveActions)) atk.abilityState.activeMoveActions = 0;
+    const countsAsOwnMoveAction = moveCountsForLastResortHistory(atk, move, reflectedAction, calledBySleepTalk);
+    const isFirstMoveActionSinceEntry = atk.abilityState.activeMoveActions === 0;
+    // 呼び出し技の場合も、元の行動が場に出て最初の行動ならねこだましを成功可能にする。
+    const fakeOutEligibleThisAction = countsAsOwnMoveAction ? isFirstMoveActionSinceEntry : atk.abilityState.activeMoveActions <= 1;
+    if (countsAsOwnMoveAction) {
+        // 行動不能・失敗を含め、この技を選んで行動を開始した時点で「場に出てからの行動」として数える。
+        atk.abilityState.activeMoveActions += 1;
+        recordMoveForLastResort(atk, move);
+    }
     if (!reflectedAction && !calledBySleepTalk && move.isRolloutContinuation && atk.volatile.disabledMove === move.origName && atk.volatile.disableTurns > 0) {
         logMsg(`🚫 ${escapeHTML(atk.name)} の ${escapeHTML(move.name)} は かなしばり で使えない！`);
         interruptRollout(atk, '技を使えなかった');
@@ -5987,6 +6019,16 @@ async function performAction(atk, def, move, isPlayer) {
     }
     logMsg(`▶️ <b>${escapeHTML(atk.name)}</b> の <b>${escapeHTML(move.name)}</b>！`);
     atk.lastMove = move.origName;
+    if (move.origName === 'fake-out' && !fakeOutEligibleThisAction) {
+        logMsg('❌ しかし、場に出て最初の行動ではないため失敗した！');
+        updateBattleUI();
+        return;
+    }
+    if (move.origName === 'last-resort' && !canUseLastResort(atk)) {
+        logMsg('❌ しかし、とっておき以外の技をすべて使っていないため失敗した！');
+        updateBattleUI();
+        return;
+    }
     // ころがる系は使用開始時に最大5ターンの連続状態へ入る。失敗時は即解除する。
     startRolloutIfNeeded(atk, move);
     // あばれる系は技を出し始めた時点で2～3ターン固定。外れ・防御・無効でも継続ターンを消費する。
@@ -7504,7 +7546,7 @@ function resetOnSwitch(pk, isLeaving = true) {
     pk.volatile.flinch = false; pk.volatile.protecting = false; pk.volatile.protectMove = null; pk.volatile.protectChain = 0; clearChargeState(pk); clearRolloutState(pk); clearRampageState(pk); pk.volatile.mustRecharge = false; pk.volatile.confused = 0; pk.volatile.infatuatedBy = null; pk.volatile.taunt = 0; pk.volatile.trapped = 0; pk.volatile.trappedBy = null; pk.volatile.ingrain = false;
     pk.volatile.seeded = false; pk.volatile.nightmare = false; pk.volatile.saltCure = false; pk.volatile.substitute = 0; pk.volatile.perish = 0;
     pk.volatile.micle = false; pk.volatile.focusEnergy = 0; pk.volatile.flashFire = false; pk.volatile.disabledMove = null; pk.volatile.disableTurns = 0; pk.volatile.faintEventProcessed = false; pk.volatile.lastHitCritical = false; pk.volatile.pendingItemSwitch = null;
-    pk.abilityState.proteanUsed = false; pk.abilityState.typeChangeSource = null; pk.abilityState.unburden = false; pk.abilityState.justSwitched = !isLeaving; pk.abilityState.charged = false; pk.abilityState.defenseCurlUsed = false; pk.abilityState.slowStartTurns = 0; pk.abilityState.actedThisTurn = false;
+    pk.abilityState.proteanUsed = false; pk.abilityState.typeChangeSource = null; pk.abilityState.unburden = false; pk.abilityState.justSwitched = !isLeaving; pk.abilityState.charged = false; pk.abilityState.defenseCurlUsed = false; pk.abilityState.slowStartTurns = 0; pk.abilityState.actedThisTurn = false; pk.abilityState.activeMoveActions = 0; pk.abilityState.usedMoveNames = [];
     pk.toxicCounter = pk.status === 'tox' ? 1 : 0;
     pk.turnsActive = 0;
     pk.lastDamageTaken = null;
@@ -7710,9 +7752,10 @@ function v14EnsureState(pk) {
     const defaults = {
         truantLoaf:false, angerShellUsed:false, supersweetUsed:false, transformSnapshot:null, illusionSnapshot:null,
         abilitySuppressed:false, myceliumActive:false, cudChewTurns:0, cudChewBerry:null, ripenPending:false,
-        embodyAspectUsed:false, emergencyExitPending:false, cudChewReplaying:false
+        embodyAspectUsed:false, emergencyExitPending:false, cudChewReplaying:false, activeMoveActions:0, usedMoveNames:[]
     };
-    for (const [key, value] of Object.entries(defaults)) if (!(key in pk.abilityState)) pk.abilityState[key] = value;
+    for (const [key, value] of Object.entries(defaults)) if (!(key in pk.abilityState)) pk.abilityState[key] = Array.isArray(value) ? [...value] : value;
+    if (!Array.isArray(pk.abilityState.usedMoveNames)) pk.abilityState.usedMoveNames = [];
     const volatileDefaults = {
         destinyBond:false, grudge:false, magicCoat:false, snatch:false, lockOnTarget:null, lockOnTurns:0,
         encoreMove:null, encoreTurns:0, imprisonMoves:null, safeguard:false, wishTurns:0, wishAmount:0,
@@ -8074,6 +8117,7 @@ function v14TransformInto(pk, target) {
     pk.types = [...target.types];
     pk.ability = target.ability;
     pk.moves = target.moves.map(move => ({ ...move, pp: Math.min(5, move.maxPp || 5), maxPp: Math.min(5, move.maxPp || 5) }));
+    pk.abilityState.usedMoveNames = [];
     pk.stats.attack = target.stats.attack; pk.stats.defense = target.stats.defense;
     pk.stats['special-attack'] = target.stats['special-attack']; pk.stats['special-defense'] = target.stats['special-defense']; pk.stats.speed = target.stats.speed;
     pk.modifiers = { ...target.modifiers };
@@ -8365,7 +8409,7 @@ handleSpecialStatusMove = async function(atk,def,move,isPlayer) {
         case 'entrainment': if(!V14_UNREPLACEABLE_ABILITIES.has(atk.ability))v14ReplaceAbility(def,atk.ability,atk);else logMsg('❌ なかまづくりに失敗した！');return true;
         case 'reflect-type': atk.types=[...def.types];atk.abilityState.typeChangeSource='reflect-type';logMsg(`🪞 ${escapeHTML(atk.name)} は相手と同じタイプになった！`);return true;
         case 'bestow': if(atk.item&&!def.item&&canRemoveHeldItem(atk,atk.item)){def.item=atk.item;atk.item=null;logMsg(`🎁 ${escapeHTML(atk.name)} は道具を渡した！`);}else logMsg('❌ 道具を渡せなかった！');return true;
-        case 'mat-block': if(atk.turnsActive===0){own.matBlock=1;logMsg('🥋 味方の場をたたみがえしで守った！');}else logMsg('❌ 最初のターンではないため失敗した！');return true;
+        case 'mat-block': if((atk.abilityState?.activeMoveActions||0)===1){own.matBlock=1;logMsg('🥋 味方の場をたたみがえしで守った！');}else logMsg('❌ 場に出て最初の行動ではないため失敗した！');return true;
         case 'wide-guard': own.wideGuard=1;logMsg('🛡️ ワイドガードを展開した！');return true;
         case 'quick-guard': own.quickGuard=1;logMsg('⚡ ファストガードを展開した！');return true;
         case 'crafty-shield': own.craftyShield=1;logMsg('✨ トリックガードを展開した！');return true;
